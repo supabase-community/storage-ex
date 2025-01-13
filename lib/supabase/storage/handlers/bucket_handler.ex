@@ -24,6 +24,10 @@ defmodule Supabase.Storage.BucketHandler do
 
   alias Supabase.Client
   alias Supabase.Fetcher
+  alias Supabase.Fetcher.Request
+  alias Supabase.Fetcher.Response
+  alias Supabase.Storage
+  alias Supabase.Storage.BodyDecoder
   alias Supabase.Storage.Bucket
   alias Supabase.Storage.Endpoints
 
@@ -42,88 +46,65 @@ defmodule Supabase.Storage.BucketHandler do
           allowed_mime_types: list(String.t()) | nil
         }
 
-  @spec list(Client.t()) :: {:ok, [Bucket.t()]} | {:error, String.t()}
+  @spec list(Client.t()) :: Supabase.result(Response.t())
   def list(%Client{} = client) do
-    headers = Fetcher.apply_client_headers(client)
-    url = Client.retrieve_storage_url(client, Endpoints.bucket_path())
-
-    url
-    |> Fetcher.get(nil, headers, resolve_json: true)
-    |> case do
-      {:ok, body} -> {:ok, Enum.map(body, &Bucket.parse!/1)}
-      {:error, msg} -> {:error, msg}
-    end
+    client
+    |> Storage.Request.base(Endpoints.bucket_path())
+    |> Request.with_method(:get)
+    |> Request.with_body_decoder(BodyDecoder, schema: Bucket)
+    |> Fetcher.request()
   end
 
-  @spec retrieve_info(Client.t, String.t) :: {:ok, Bucket.t()} | {:error, String.t()}
+  @spec retrieve_info(Client.t(), String.t()) :: Supabase.result(Response.t())
   def retrieve_info(%Client{} = client, bucket_id) do
     uri = Endpoints.bucket_path_with_id(bucket_id)
-    url = Client.retrieve_storage_url(client, uri)
-    headers = Fetcher.apply_client_headers(client)
 
-    url
-    |> Fetcher.get(nil, headers, resolve_json: true)
-    |> case do
-      {:ok, body} -> {:ok, Bucket.parse!(body)}
-      {:error, msg} -> {:error, msg}
-    end
+    client
+    |> Storage.Request.base(uri)
+    |> Request.with_method(:get)
+    |> Request.with_body_decoder(BodyDecoder, schema: Bucket)
+    |> Fetcher.request()
   end
 
-  @spec create(Client.t, create_attrs) :: {:ok, Bucket.t()} | {:error, String.t()}
+  @spec create(Client.t(), create_attrs) :: Supabase.result(Response.t())
   def create(%Client{} = client, attrs) do
-    url = Client.retrieve_storage_url(client, Endpoints.bucket_path())
-    headers = Fetcher.apply_client_headers(client)
-
-    url
-    |> Fetcher.post(attrs, headers)
-    |> case do
-      {:ok, resp} -> {:ok, resp}
-      {:error, msg} -> {:error, msg}
-    end
+    client
+    |> Storage.Request.base(Endpoints.bucket_path())
+    |> Request.with_method(:post)
+    |> Request.with_body(attrs)
+    # |> Request.with_body_decoder(BodyDecoder, schema: Bucket)
+    |> Fetcher.request()
   end
 
-  @spec update(Client.t, bucket_id, update_attrs) ::
-          {:ok, Bucket.t()} | {:error, String.t()}
+  @spec update(Client.t(), bucket_id, update_attrs) :: Supabase.result(Response.t())
   def update(%Client{} = client, id, attrs) do
     uri = Endpoints.bucket_path_with_id(id)
-    url = Client.retrieve_storage_url(client, uri)
-    headers = Fetcher.apply_client_headers(client)
 
-    url
-    |> Fetcher.put(attrs, headers)
-    |> case do
-      {:ok, message} -> {:ok, message}
-      {:error, msg} -> {:error, msg}
-    end
+    client
+    |> Storage.Request.base(uri)
+    |> Request.with_method(:put)
+    |> Request.with_body(attrs)
+    # |> Request.with_body_decoder(BodyDecoder, schema: Bucket)
+    |> Fetcher.request()
   end
 
-  @spec empty(Client.t, bucket_id) ::
-          {:ok, :successfully_emptied} | {:error, String.t()}
+  @spec empty(Client.t(), bucket_id) :: Supabase.result(Response.t())
   def empty(%Client{} = client, id) do
     uri = Endpoints.bucket_path_to_empty(id)
-    url = Client.retrieve_storage_url(client, uri)
-    headers = Fetcher.apply_client_headers(client)
 
-    url
-    |> Fetcher.post(nil, headers)
-    |> case do
-      {:ok, _message} -> {:ok, :successfully_emptied}
-      {:error, msg} -> {:error, msg}
-    end
+    client
+    |> Storage.Request.base(uri)
+    |> Request.with_method(:post)
+    |> Fetcher.request()
   end
 
-  @spec delete(Client.t, bucket_id) ::
-          {:ok, String.t()} | {:error, String.t()}
+  @spec delete(Client.t(), bucket_id) :: Supabase.result(Response.t())
   def delete(%Client{} = client, id) do
     uri = Endpoints.bucket_path_with_id(id)
-    url = Client.retrieve_storage_url(client, uri)
-    headers = Fetcher.apply_client_headers(client)
 
-    url
-    |> Fetcher.delete(nil, headers)
-    |> case do
-      {:ok, body} -> {:ok, body}
-      {:error, msg} -> {:error, msg}
-    end
+    client
+    |> Storage.Request.base(uri)
+    |> Request.with_method(:delete)
+    |> Fetcher.request()
   end
 end
