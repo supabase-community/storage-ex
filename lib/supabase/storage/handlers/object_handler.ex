@@ -19,6 +19,10 @@ defmodule Supabase.Storage.ObjectHandler do
 
   alias Supabase.Client
   alias Supabase.Fetcher
+  alias Supabase.Fetcher.Request
+  alias Supabase.Fetcher.Response
+  alias Supabase.Storage
+  alias Supabase.Storage.BodyDecoder
   alias Supabase.Storage.Endpoints
   alias Supabase.Storage.Object
   alias Supabase.Storage.ObjectOptions, as: Opts
@@ -33,141 +37,119 @@ defmodule Supabase.Storage.ObjectHandler do
   @type prefix :: String.t()
 
   @spec create_file(Client.t(), bucket_name, object_path, file_path, opts) ::
-          {:ok, Object.t()} | {:error, String.t()}
+          Supabase.result(Response.t())
   def create_file(%Client{} = client, bucket, object_path, file_path, %Opts{} = opts) do
     uri = Endpoints.file_upload(bucket, object_path)
-    url = Client.retrieve_storage_url(client, uri)
 
-    headers =
-      Fetcher.apply_client_headers(client, nil, [
-        {"cache-control", "max-age=#{opts.cache_control}"},
-        {"content-type", opts.content_type},
-        {"x-upsert", to_string(opts.upsert)}
-      ])
-
-    Fetcher.upload(:post, url, file_path, headers)
-  rescue
-    File.Error -> {:error, :file_not_found}
+    client
+    |> Storage.Request.base(uri)
+    |> Request.with_method(:post)
+    |> Request.with_headers(%{
+      "cache-control" => "max-age=#{opts.cache_control}",
+      "content-type" => opts.content_type,
+      "x-upsert" => to_string(opts.upsert)
+    })
+    |> Fetcher.upload(file_path)
   end
 
-  @spec move(Client.t(), bucket_name, object_path, object_path) ::
-          {:ok, :moved} | {:error, String.t()}
+  @spec move(Client.t(), bucket_name, object_path, object_path) :: Supabase.result(Response.t())
   def move(%Client{} = client, bucket_id, path, to) do
-    url = Client.retrieve_storage_url(client, Endpoints.file_move())
-    headers = Fetcher.apply_client_headers(client)
     body = %{bucket_id: bucket_id, source_key: path, destination_key: to}
 
-    url
-    |> Fetcher.post(body, headers)
-    |> case do
-      {:ok, _} -> {:ok, :moved}
-      {:error, msg} -> {:error, msg}
-    end
+    client
+    |> Storage.Request.base(Endpoints.file_move())
+    |> Request.with_body(body)
+    |> Request.with_method(:post)
+    |> Fetcher.request()
   end
 
-  @spec copy(Client.t(), bucket_name, object_path, object_path) ::
-          {:ok, :copied} | {:error, String.t()}
+  @spec copy(Client.t(), bucket_name, object_path, object_path) :: Supabase.result(Response.t())
   def copy(%Client{} = client, bucket_id, path, to) do
-    url = Client.retrieve_storage_url(client, Endpoints.file_copy())
-    headers = Fetcher.apply_client_headers(client)
     body = %{bucket_id: bucket_id, source_key: path, destination_key: to}
 
-    url
-    |> Fetcher.post(body, headers)
-    |> case do
-      {:ok, _} -> {:ok, :copied}
-      {:error, msg} -> {:error, msg}
-    end
+    client
+    |> Storage.Request.base(Endpoints.file_copy())
+    |> Request.with_body(body)
+    |> Request.with_method(:post)
+    |> Fetcher.request()
   end
 
-  @spec get_info(Client.t(), bucket_name, wildcard) ::
-          {:ok, Object.t()} | {:error, String.t()}
+  @spec get_info(Client.t(), bucket_name, wildcard) :: Supabase.result(Response.t())
   def get_info(%Client{} = client, bucket_name, wildcard) do
     uri = Endpoints.file_info(bucket_name, wildcard)
-    url = Client.retrieve_storage_url(client, uri)
-    headers = Fetcher.apply_client_headers(client)
 
-    url
-    |> Fetcher.get(nil, headers, resolve_json: true)
-    |> case do
-      {:ok, data} -> {:ok, Object.parse!(data)}
-      {:error, msg} -> {:error, msg}
-    end
+    client
+    |> Storage.Request.base(uri)
+    |> Request.with_body_decoder(BodyDecoder, schema: Object)
+    |> Fetcher.request()
   end
 
-  @spec list(Client.t(), bucket_name, prefix, search_opts) ::
-          {:ok, [Object.t()]} | {:error, String.t()}
+  @spec list(Client.t(), bucket_name, prefix, search_opts) :: Supabase.result(Response.t())
   def list(%Client{} = client, bucket_name, prefix, %Search{} = opts) do
     uri = Endpoints.file_list(bucket_name)
-    url = Client.retrieve_storage_url(client, uri)
-    headers = Fetcher.apply_client_headers(client)
     body = Map.merge(%{prefix: prefix}, Map.from_struct(opts))
 
-    url
-    |> Fetcher.post(body, headers, resolve_json: true)
-    |> case do
-      {:ok, data} -> {:ok, Enum.map(data, &Object.parse!/1)}
-      {:error, msg} -> {:error, msg}
-    end
+    client
+    |> Storage.Request.base(uri)
+    |> Request.with_body_decoder(BodyDecoder, schema: Object)
+    |> Request.with_body(body)
+    |> Fetcher.request()
   end
 
-  @spec remove(Client.t(), bucket_name, object_path) ::
-          {:ok, :deleted} | {:error, String.t()}
+  @spec remove(Client.t(), bucket_name, object_path) :: Supabase.result(Response.t())
   def remove(%Client{} = client, bucket_name, path) do
     remove_list(client, bucket_name, [path])
   end
 
-  @spec remove_list(Client.t(), bucket_name, list(object_path)) ::
-          {:ok, :deleted} | {:error, String.t()}
+  @spec remove_list(Client.t(), bucket_name, list(object_path)) :: Supabase.result(Response.t())
   def remove_list(%Client{} = client, bucket_name, paths) do
     uri = Endpoints.file_remove(bucket_name)
-    url = Client.retrieve_storage_url(client, uri)
-    headers = Fetcher.apply_client_headers(client)
 
-    url
-    |> Fetcher.delete(%{prefixes: paths}, headers)
-    |> case do
-      {:ok, _} -> {:ok, :deleted}
-      {:error, msg} -> {:error, msg}
-    end
+    client
+    |> Storage.Request.base(uri)
+    |> Request.with_body(%{prefixes: paths})
+    |> Request.with_method(:delete)
+    |> Fetcher.request()
   end
 
   @spec create_signed_url(Client.t(), bucket_name, object_path, integer) ::
-          {:ok, String.t()} | {:error, String.t()}
+          Supabase.result(Response.t())
   def create_signed_url(%Client{} = client, bucket_name, path, expires_in) do
     uri = Endpoints.file_signed_url(bucket_name, path)
-    url = Client.retrieve_storage_url(client, uri)
-    headers = Fetcher.apply_client_headers(client)
 
-    url
-    |> Fetcher.post(%{expiresIn: expires_in}, headers, resolve_json: true)
-    |> case do
-      {:ok, data} -> {:ok, data["signedURL"]}
-      {:error, msg} -> {:error, msg}
-    end
+    client
+    |> Storage.Request.base(uri)
+    |> Request.with_body(%{expiresIn: expires_in})
+    |> Request.with_method(:post)
+    |> Fetcher.request()
   end
 
-  @spec get(Client.t(), bucket_name, object_path) ::
-          {:ok, binary} | {:error, String.t()}
+  @spec get(Client.t(), bucket_name, object_path) :: Supabase.result(Response.t())
   def get(%Client{} = client, bucket_name, wildcard) do
     uri = Endpoints.file_download(bucket_name, wildcard)
-    url = Client.retrieve_storage_url(client, uri)
-    headers = Fetcher.apply_client_headers(client)
 
-    url
-    |> Fetcher.get(nil, headers, resolve_json: true)
-    |> case do
-      {:ok, data} -> {:ok, data}
-      {:error, msg} -> {:error, msg}
-    end
+    client
+    |> Storage.Request.base(uri)
+    |> Fetcher.request()
   end
 
-  @spec get_lazy(Client.t(), bucket_name, wildcard) ::
-          {:ok, Enumerable.t()} | {:error, atom}
+  @spec get_lazy(Client.t(), bucket_name, wildcard) :: Supabase.result(Response.t())
   def get_lazy(%Client{} = client, bucket_name, wildcard) do
     uri = Endpoints.file_download(bucket_name, wildcard)
-    url = Client.retrieve_storage_url(client, uri)
-    headers = Fetcher.apply_client_headers(client)
-    Fetcher.stream(url, headers)
+
+    client
+    |> Storage.Request.base(uri)
+    |> Fetcher.stream()
+  end
+
+  @spec get_lazy(Client.t(), bucket_name, wildcard, on_response) :: Supabase.result(Response.t())
+        when on_response: ({Fetcher.status(), Fetcher.headers(), binary} ->
+                             Supabase.result(Response.t()))
+  def get_lazy(%Client{} = client, bucket_name, wildcard, on_response) do
+    uri = Endpoints.file_download(bucket_name, wildcard)
+
+    client
+    |> Storage.Request.base(uri)
+    |> Fetcher.stream(on_response)
   end
 end

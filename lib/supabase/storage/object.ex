@@ -37,7 +37,7 @@ defmodule Supabase.Storage.Object do
 
   use Ecto.Schema
 
-  import Ecto.Changeset, only: [cast: 3, apply_action!: 2]
+  import Ecto.Changeset
 
   @type t :: %__MODULE__{
           id: String.t(),
@@ -66,10 +66,24 @@ defmodule Supabase.Storage.Object do
     field(:last_accessed_at, :naive_datetime)
   end
 
-  @spec parse!(map) :: t
-  def parse!(attrs) do
+  @spec parse(map | list(map)) :: t | list(t)
+  def parse(attrs) when is_list(attrs) do
+    Enum.reduce_while(attrs, [], fn attr, acc ->
+      case parse(attr) do
+        {:ok, data} -> {:cont, acc ++ [data]}
+        {:error, changeset} -> {:halt, changeset}
+      end
+    end)
+    |> then(fn
+      data when is_list(data) -> {:ok, data}
+      changeset -> {:error, changeset}
+    end)
+  end
+
+  def parse(attrs) do
     %__MODULE__{}
     |> cast(attrs, @fields)
-    |> apply_action!(:parse)
+    |> validate_required([:id])
+    |> apply_action(:parse)
   end
 end

@@ -85,11 +85,25 @@ defmodule Supabase.Storage.Bucket do
     field(:public, :boolean, default: false)
   end
 
-  @spec parse!(map) :: t
-  def parse!(attrs) do
+  @spec parse(map | list(map)) :: t
+  def parse(attrs) when is_list(attrs) do
+    Enum.reduce_while(attrs, [], fn attr, acc ->
+      case parse(attr) do
+        {:ok, data} -> {:cont, [data | acc]}
+        {:error, err} -> {:halt, err}
+      end
+    end)
+    |> then(fn
+      %Ecto.Changeset{} = changeset -> {:error, changeset}
+      data when is_list(data) -> {:ok, Enum.reverse(data)}
+    end)
+  end
+
+  def parse(attrs) do
     %__MODULE__{}
     |> cast(attrs, @fields)
-    |> apply_action!(:parse)
+    |> validate_required([:id, :name])
+    |> apply_action(:parse)
   end
 
   @spec create_changeset(map) :: {:ok, map} | {:error, Ecto.Changeset.t()}

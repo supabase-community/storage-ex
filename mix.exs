@@ -26,7 +26,7 @@ defmodule Supabase.Storage.MixProject do
   defp deps do
     [
       {:ecto, "~> 3.10"},
-      {:supabase_potion, "~> 0.4"},
+      {:supabase_potion, path: "../supabase-ex"},
       {:ex_doc, ">= 0.0.0", runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.3", only: [:dev], runtime: false}
