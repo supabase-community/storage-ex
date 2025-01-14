@@ -29,6 +29,10 @@ defmodule Supabase.Storage.Endpoints do
     "/object/#{bucket}/#{path}"
   end
 
+  def file_upload_to_url(bucket, path) do
+    "/object/upload/sign/#{bucket}/#{path}"
+  end
+
   def file_info(bucket, wildcard) do
     "/object/info/authenticated/#{bucket}/#{wildcard}"
   end
@@ -43,6 +47,10 @@ defmodule Supabase.Storage.Endpoints do
 
   def file_signed_url(bucket, path) do
     "/object/sign/#{bucket}/#{path}"
+  end
+
+  def file_upload_signed_url(bucket, path) do
+    "/object/upload/sign/#{bucket}/#{path}"
   end
 
   def file_download(bucket, wildcard) do

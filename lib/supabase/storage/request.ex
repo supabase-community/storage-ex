@@ -8,5 +8,6 @@ defmodule Supabase.Storage.Request do
     Request.new(client)
     |> Request.with_storage_url(path)
     |> Request.with_error_parser(Supabase.Storage.Error)
+    |> Request.with_headers(%{"content-type" => "application/json"})
   end
 end
