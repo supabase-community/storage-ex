@@ -23,8 +23,8 @@ defmodule Supabase.Storage.Bucket do
 
   """
   @type t :: %__MODULE__{
-          id: String.t(),
-          name: String.t(),
+          id: String.t() | nil,
+          name: String.t() | nil,
           owner: String.t() | nil,
           file_size_limit: file_size_limit_t | nil,
           allowed_mime_types: list(String.t()) | nil,
@@ -78,13 +78,13 @@ defmodule Supabase.Storage.Bucket do
     end)
   end
 
-  def parse(attrs) do
+  def parse(%{} = attrs) do
     %__MODULE__{}
     |> changeset(attrs)
     |> apply_action(:parse)
   end
 
-  @spec changeset(t, map) :: {:ok, map} | {:error, Ecto.Changeset.t()}
+  @spec changeset(t, map) :: Ecto.Changeset.t()
   def changeset(%__MODULE__{} = source, %{} = attrs) do
     source
     |> cast(attrs, @fields)

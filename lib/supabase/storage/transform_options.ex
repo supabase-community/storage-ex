@@ -36,7 +36,7 @@ defmodule Supabase.Storage.TransformOptions do
     field(:format, :string, default: "origin")
   end
 
-  @spec parse(map) :: t
+  @spec parse(map) :: {:ok, t} | {:error, Ecto.Changeset.t()}
   def parse(attrs) do
     %__MODULE__{}
     |> cast(attrs, @fields)

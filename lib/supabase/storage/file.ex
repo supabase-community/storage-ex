@@ -57,7 +57,7 @@ defmodule Supabase.Storage.File do
     belongs_to(:bucket, Storage.Bucket)
   end
 
-  @spec parse(map | list(map)) :: t | list(t)
+  @spec parse(map | list(map)) :: {:ok, t | list(t)} | {:error, Ecto.Changeset.t()}
   @doc false
   def parse(attrs) when is_list(attrs) do
     Enum.reduce_while(attrs, [], fn attr, acc ->
@@ -87,14 +87,16 @@ defmodule Supabase.Storage.File do
   - `storage`: The `Supabase.Storage` instance created with `Supabase.Storage.from/2`.
   - `file_path`: The **local** filesystem path, to upload from.
   - `object_path`: The file path, including the file name. Should be of the format `folder/subfolder/filename.png`. The bucket must already exist before attempting to upload.
-  - `options`: Optional `Supabase.Storage.FileOptions`.
+  - `options`: Optional `Enumerable` that represents the `Supabase.Storage.FileOptions`.
   """
   @spec upload(Storage.t(), file_path, object_path, options) :: Supabase.result(map)
         when file_path: Path.t(),
              object_path: Path.t(),
-             options: FileOptions.t()
-  def upload(%Storage{} = s, file_path, object_path, opts \\ %FileOptions{})
-      when is_binary(file_path) and is_binary(object_path) and is_struct(opts, FileOptions) do
+             options: Enumerable.t()
+  def upload(%Storage{} = s, file_path, object_path, opts \\ %{})
+      when is_binary(file_path) and is_binary(object_path) do
+    {:ok, opts} = FileOptions.parse(opts)
+
     clean_path =
       object_path
       |> String.replace(~r/^\/|\/$/, "")
@@ -115,17 +117,18 @@ defmodule Supabase.Storage.File do
   - `token`: token The token generated from `create_signed_upload_url/3`.
   - `file_path`: The **local** filesystem path, to upload from.
   - `object_path`: The file path, including the file name. Should be of the format `folder/subfolder/filename.png`. The bucket must already exist before attempting to upload.
-  - `options`: Optional `Supabase.Storage.FileOptions`.
+  - `options`: Optional `Enumerable` that represents the `Supabase.Storage.FileOptions`.
   """
   @spec upload_to_signed_url(Storage.t(), token, file_path, object_path, options) ::
           Supabase.result(map)
         when file_path: Path.t(),
              object_path: Path.t(),
-             options: FileOptions.t(),
+             options: Enumerable.t(),
              token: String.t()
-  def upload_to_signed_url(%Storage{} = s, token, file_path, object_path, opts \\ %FileOptions{})
-      when is_binary(token) and is_binary(file_path) and is_binary(object_path) and
-             is_struct(opts, FileOptions) do
+  def upload_to_signed_url(%Storage{} = s, token, file_path, object_path, opts \\ %{})
+      when is_binary(token) and is_binary(file_path) and is_binary(object_path) do
+    {:ok, opts} = FileOptions.parse(opts)
+
     clean_path =
       object_path
       |> String.replace(~r/^\/|\/$/, "")
@@ -229,14 +232,14 @@ defmodule Supabase.Storage.File do
   - `object_path`:The file path, including the current file name. For example `folder/image.png`.
   - `options.expires_in`: The number of seconds until the signed URL expires. For example, `60` for a URL which is valid for one minute.
   - `options.download`: Triggers the file as a download if set to true. Set this parameter as the name of the file if you want to trigger the download with a different filename.
-  - `options.transform`: The `Supabase.Storage.TransformOptions` to transform the asset before serving it to the client.
+  - `options.transform`: An `Enumerable` that represents the `Supabase.Storage.TransformOptions` to transform the asset before serving it to the client.
   """
   @spec create_signed_url(Storage.t(), object_path, options) :: Supabase.result(String.t())
         when object_path: Path.t(),
              options:
                list(
                  {:download, boolean | String.t() | nil}
-                 | {:transform, TransformOptions.t() | nil}
+                 | {:transform, Enumerable.t() | nil}
                  | {:expires_in, integer}
                )
   def create_signed_url(%Storage{} = s, path, opts \\ []) do
@@ -267,11 +270,14 @@ defmodule Supabase.Storage.File do
   ## Params
 
   - `storage`: The `Supabase.Storage` instance created with `Supabase.Storage.from/2`.
-  - `path`: The folder path.
+  - `prefix`: The folder path.
+  - `options`: An `Enumerable` that represents the `#{SearchOptions}`.
   """
-  @spec list(Storage.t(), Path.t() | nil, options :: SearchOptions.t()) ::
-          Supabase.result(list(File.t()))
-  def list(%Storage{} = s, prefix \\ nil, opts \\ %SearchOptions{}) do
+  @spec list(Storage.t(), Path.t() | nil, options :: Enumerable.t()) ::
+          Supabase.result(list(t))
+  def list(%Storage{} = s, prefix \\ nil, opts \\ %{}) do
+    {:ok, opts} = SearchOptions.parse(opts)
+
     with {:ok, resp} <- FileHandler.list(s.client, s.bucket_id, prefix, opts) do
       {:ok, resp.body}
     end
@@ -286,7 +292,7 @@ defmodule Supabase.Storage.File do
   - `paths`: An array of files to delete, including the path and file name. For example `["folder/image.png"]`.
   """
   @spec remove(Storage.t(), to_remove :: list(Path.t()) | Path.t()) ::
-          Supabase.result(list(File.t()) | File.t())
+          Supabase.result(list(t) | t)
   def remove(%Storage{} = s, to_remove) when is_list(to_remove) do
     with {:ok, resp} <- FileHandler.remove_list(s.client, s.bucket_id, to_remove) do
       {:ok, resp.body}
@@ -307,22 +313,21 @@ defmodule Supabase.Storage.File do
   - `storage`: The `Supabase.Storage` instance created with `Supabase.Storage.from/2`.
   - `path`: The path and name of the file to generate the public URL for. For example `folder/image.png`.
   - `options.download`: Triggers the file as a download if set to true. Set this parameter as the name of the file if you want to trigger the download with a different filename.
-  - `options.transform`: `Supabase.Storage.TransformOptions` the asset before serving it to the client.
+  - `options.transform`: `Supabase.Storage.TransformOptions` the asset before serving it to the client, as an `Enumerable`.
   """
   @spec get_public_url(Storage.t(), object_path, options) :: Supabase.result(String.t())
         when object_path: Path.t(),
              options:
                list(
                  {:download, boolean | String.t() | nil}
-                 | {:transform, TransformOptions.t() | nil}
+                 | {:transform, Enumerable.t() | nil}
                )
   def get_public_url(%Storage{} = s, path, opts \\ [])
       when is_binary(path) and is_list(opts) do
     download = Keyword.get(opts, :download)
     transform = Keyword.get(opts, :transform)
 
-    {:ok, transform} =
-      if transform, do: TransformOptions.parse(transform), else: {:ok, %TransformOptions{}}
+    {:ok, transform} = if transform, do: TransformOptions.parse(transform), else: {:ok, nil}
 
     clean_path =
       path
@@ -336,7 +341,7 @@ defmodule Supabase.Storage.File do
       |> Path.join()
       |> URI.parse()
 
-    transform_query = if transform, do: to_string(transform), else: ""
+    transform_query = if is_nil(transform), do: "", else: to_string(transform)
 
     if is_nil(download) do
       {:ok, to_string(URI.append_query(uri, transform_query))}
@@ -371,7 +376,7 @@ defmodule Supabase.Storage.File do
   - `storage`: The `Supabase.Storage` instance created with `Supabase.Storage.from/2`.
   - `path`
   """
-  @spec info(Storage.t(), path :: Path.t()) :: Supabase.result(File.t())
+  @spec info(Storage.t(), path :: Path.t()) :: Supabase.result(t)
   def info(%Storage{} = s, path) when is_binary(path) do
     with {:ok, resp} <- FileHandler.get_info(s.client, s.bucket_id, path) do
       {:ok, resp.body}
@@ -386,7 +391,7 @@ defmodule Supabase.Storage.File do
   - `options.transform`: Transform the asset before serving it to the client.
   """
   @spec download(Storage.t(), path :: Path.t(), options) :: Supabase.result(binary)
-        when options: list({:transform, TransformOptions.t() | nil})
+        when options: list({:transform, Enumerable.t() | nil})
   def download(%Storage{} = s, path, opts \\ [])
       when is_binary(path) and is_list(opts) do
     transform = Keyword.get(opts, :transform)
@@ -405,8 +410,8 @@ defmodule Supabase.Storage.File do
   """
   @spec download_lazy(Storage.t(), path :: Path.t(), on_response, options) ::
           Supabase.result(binary)
-        when options: list({:transform, TransformOptions.t() | nil}),
-             on_response: ({SupabaseFetcher.status(), Supabase.Fetcher.headers(), binary} ->
+        when options: list({:transform, Enumerable.t() | nil}),
+             on_response: ({Supabase.Fetcher.status(), Supabase.Fetcher.headers(), binary} ->
                              Supabase.result(Supabase.Fetcher.Response.t()))
   def download_lazy(%Storage{} = s, path, on_response, opts \\ [])
       when is_binary(path) and is_list(opts) do

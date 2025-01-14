@@ -43,7 +43,7 @@ defmodule Supabase.Storage.SearchOptions do
     end
   end
 
-  @spec parse(map) :: t
+  @spec parse(map) :: {:ok, t} | {:error, Ecto.Changeset.t()}
   def parse(attrs) do
     %__MODULE__{}
     |> cast(attrs, @fields)

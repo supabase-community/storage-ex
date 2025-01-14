@@ -20,18 +20,6 @@ defmodule Supabase.Storage.BucketHandler do
 
   @type bucket_id :: String.t()
   @type bucket_name :: String.t()
-  @type create_attrs :: %{
-          id: String.t(),
-          name: String.t(),
-          file_size_limit: integer | nil,
-          allowed_mime_types: list(String.t()) | nil,
-          public: boolean
-        }
-  @type update_attrs :: %{
-          public: boolean | nil,
-          file_size_limit: integer | nil,
-          allowed_mime_types: list(String.t()) | nil
-        }
 
   @spec list(Client.t()) :: Supabase.result(Response.t())
   def list(%Client{} = client) do
@@ -62,9 +50,10 @@ defmodule Supabase.Storage.BucketHandler do
     |> Fetcher.request()
   end
 
-  @spec update(Client.t(), bucket_id, update_attrs) :: Supabase.result(Response.t())
+  @spec update(Client.t(), bucket_id, Bucket.t()) :: Supabase.result(Response.t())
   def update(%Client{} = client, id, attrs) do
     uri = Endpoints.bucket_path_with_id(id)
+    attrs = Map.take(attrs, [:public, :file_size_limit, :allowed_mime_types])
 
     client
     |> Storage.Request.base(uri)
