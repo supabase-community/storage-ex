@@ -135,7 +135,7 @@ defmodule Supabase.Storage do
 
   """
   @impl true
-  def create_bucket(%Client{} = client, id, %{} = attrs) when is_binary(id) do
+  def create_bucket(%Client{} = client, id, %{} = attrs \\ %{}) when is_binary(id) do
     {:ok, bucket} = Bucket.parse(Map.put(attrs, :id, id))
 
     with {:ok, _} <- BucketHandler.create(client, bucket) do

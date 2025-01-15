@@ -86,14 +86,17 @@ defmodule Supabase.Storage.Bucket do
 
   @spec changeset(t, map) :: Ecto.Changeset.t()
   def changeset(%__MODULE__{} = source, %{} = attrs) do
+    attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+
     source
     |> cast(attrs, @fields)
     |> maybe_put_name()
+    |> parse_file_size_limit(attrs)
     |> cast_embed(:file_size_limit, with: &file_size_limit_changeset/2)
     |> validate_required([:id, :name, :public])
   end
 
-  defp maybe_put_name(%{valid?: true} = changeset), do: changeset
+  defp maybe_put_name(%{valid?: false} = changeset), do: changeset
 
   defp maybe_put_name(changeset) do
     name = get_field(changeset, :name)
@@ -102,10 +105,34 @@ defmodule Supabase.Storage.Bucket do
     if name, do: changeset, else: put_change(changeset, :name, id)
   end
 
+  defp parse_file_size_limit(%{valid?: false} = changeset, _attrs), do: changeset
+
+  defp parse_file_size_limit(changeset, %{"file_size_limit" => file_size_limit})
+       when is_integer(file_size_limit) do
+    put_in(changeset.params["file_size_limit"], %{size: file_size_limit, unit: :byte})
+  end
+
+  defp parse_file_size_limit(changeset, %{"file_size_limit" => file_size_limit})
+       when is_binary(file_size_limit) do
+    {file_size_limit, unit} = Integer.parse(file_size_limit)
+
+    unit =
+      case String.upcase(unit) do
+        "MB" -> :megabyte
+        "TB" -> :terabyte
+        "GB" -> :gigabyte
+        _ -> :byte
+      end
+
+    put_in(changeset.params["file_size_limit"], %{size: file_size_limit, unit: unit})
+  end
+
+  defp parse_file_size_limit(changeset, _attrs), do: changeset
+
   defp file_size_limit_changeset(source, attrs) do
     source
     |> cast(attrs, [:size, :unit])
-    |> validate_required([:unit])
+    |> validate_required([:size])
   end
 
   defimpl Jason.Encoder, for: __MODULE__ do
