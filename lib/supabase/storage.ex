@@ -68,7 +68,11 @@ defmodule Supabase.Storage do
 
   """
   @impl true
-  defdelegate list_buckets(client), to: BucketHandler, as: :list
+  def list_buckets(%Client{} = client) do
+    with {:ok, %{body: body}} <- BucketHandler.list(client) do
+      {:ok, body}
+    end
+  end
 
   @doc """
   Retrieves information about a bucket in the current project.
@@ -89,7 +93,11 @@ defmodule Supabase.Storage do
 
   """
   @impl true
-  defdelegate retrieve_bucket_info(client, id), to: BucketHandler, as: :retrieve_info
+  def retrieve_bucket_info(%Client{} = client, id) when is_binary(id) do
+    with {:ok, %{body: body}} <- BucketHandler.retrieve_info(client, id) do
+      {:ok, body}
+    end
+  end
 
   @doc """
   Creates a new bucket in the current project given a map of attributes.
@@ -118,10 +126,10 @@ defmodule Supabase.Storage do
 
   """
   @impl true
-  def create_bucket(%Client{} = client, attrs) do
+  def create_bucket(%Client{} = client, %{} = attrs) do
     with {:ok, bucket_params} <- Bucket.create_changeset(attrs),
-         {:ok, _} <- BucketHandler.create(client, bucket_params) do
-      retrieve_bucket_info(client, bucket_params.id)
+         {:ok, %{body: body}} <- BucketHandler.create(client, bucket_params) do
+      {:ok, body}
     end
   end
 
@@ -153,10 +161,14 @@ defmodule Supabase.Storage do
 
   """
   @impl true
-  def update_bucket(%Client{} = client, %Bucket{} = bucket, attrs) do
+  def update_bucket(%Client{} = client, id, %{} = attrs) when is_binary(id) do
+    update_bucket(client, %Bucket{id: id}, attrs)
+  end
+
+  def update_bucket(%Client{} = client, %Bucket{} = bucket, %{} = attrs) do
     with {:ok, bucket_params} <- Bucket.update_changeset(bucket, attrs),
-         {:ok, _} <- BucketHandler.update(client, bucket.id, bucket_params) do
-      retrieve_bucket_info(client, bucket.id)
+         {:ok, resp} <- BucketHandler.update(client, bucket.id, bucket_params) do
+      {:ok, resp.body}
     end
   end
 
@@ -179,8 +191,14 @@ defmodule Supabase.Storage do
 
   """
   @impl true
+  def empty_bucket(%Client{} = client, id) when is_binary(id) do
+    empty_bucket(client, %Bucket{id: id})
+  end
+
   def empty_bucket(%Client{} = client, %Bucket{} = bucket) do
-    BucketHandler.empty(client, bucket.id)
+    with {:ok, _} <- BucketHandler.empty(client, bucket.id) do
+      {:ok, :emptied}
+    end
   end
 
   @doc """
@@ -202,6 +220,10 @@ defmodule Supabase.Storage do
 
   """
   @impl true
+  def delete_bucket(%Client{} = client, id) when is_binary(id) do
+    delete_bucket(client, %Bucket{id: id})
+  end
+
   def delete_bucket(%Client{} = client, %Bucket{} = bucket) do
     with {:ok, _} <- BucketHandler.delete(client, bucket.id) do
       {:ok, :deleted}
@@ -227,8 +249,15 @@ defmodule Supabase.Storage do
 
   """
   @impl true
+  def remove_object(%Client{} = client, id, path)
+      when is_binary(id) and is_binary(path) do
+    remove_object(client, %Bucket{id: id}, %Object{path: path})
+  end
+
   def remove_object(%Client{} = client, %Bucket{} = bucket, %Object{} = object) do
-    ObjectHandler.remove(client, bucket.name, object.path)
+    with {:ok, _} <- ObjectHandler.remove(client, bucket.name, object.path) do
+      {:ok, :removed}
+    end
   end
 
   @doc """
@@ -252,9 +281,16 @@ defmodule Supabase.Storage do
 
   """
   @impl true
+  def move_object(%Client{} = client, id, path, to)
+      when is_binary(id) and is_binary(path) and is_binary(to) do
+    move_object(client, %Bucket{id: id}, %Object{path: path}, to)
+  end
+
   def move_object(%Client{} = client, %Bucket{} = bucket, %Object{} = object, to)
       when is_binary(to) do
-    ObjectHandler.move(client, bucket.name, object.path, to)
+    with {:ok, _} <- ObjectHandler.move(client, bucket.name, object.path, to) do
+      {:ok, :moved}
+    end
   end
 
   @doc """
@@ -278,9 +314,16 @@ defmodule Supabase.Storage do
 
   """
   @impl true
+  def copy_object(%Client{} = client, id, path, to)
+      when is_binary(id) and is_binary(path) and is_binary(to) do
+    copy_object(client, %Bucket{id: id}, %Object{path: path}, to)
+  end
+
   def copy_object(%Client{} = client, %Bucket{} = bucket, %Object{} = object, to)
       when is_binary(to) do
-    ObjectHandler.copy(client, bucket.name, object.path, to)
+    with {:ok, _} <- ObjectHandler.copy(client, bucket.name, object.path, to) do
+      {:ok, :copied}
+    end
   end
 
   @doc """
@@ -302,9 +345,16 @@ defmodule Supabase.Storage do
 
   """
   @impl true
+  def retrieve_object_info(%Client{} = client, id, wildcard)
+      when is_binary(id) and is_binary(wildcard) do
+    retrieve_object_info(client, %Bucket{id: id}, wildcard)
+  end
+
   def retrieve_object_info(%Client{} = client, %Bucket{} = bucket, wildcard)
       when is_binary(wildcard) do
-    ObjectHandler.get_info(client, bucket.name, wildcard)
+    with {:ok, resp} <- ObjectHandler.get_info(client, bucket.name, wildcard) do
+      {:ok, resp.body}
+    end
   end
 
   @doc """
@@ -352,9 +402,17 @@ defmodule Supabase.Storage do
 
   """
   @impl true
-  def list_objects(%Client{} = client, %Bucket{} = bucket, prefix \\ "", opts \\ %SearchOptions{})
+  def list_objects(client, bucket, prefix \\ "", opts \\ %SearchOptions{})
+
+  def list_objects(client, id, prefix, opts) when is_binary(id) and is_binary(prefix) do
+    list_objects(client, %Bucket{id: id}, prefix, opts)
+  end
+
+  def list_objects(%Client{} = client, %Bucket{} = bucket, prefix, opts)
       when is_binary(prefix) do
-    ObjectHandler.list(client, bucket.name, prefix, opts)
+    with {:ok, resp} <- ObjectHandler.list(client, bucket.name, prefix, opts) do
+      {:ok, resp.body}
+    end
   end
 
   @doc """
@@ -387,10 +445,21 @@ defmodule Supabase.Storage do
 
   """
   @impl true
-  def upload_object(%Client{} = client, %Bucket{} = bucket, path, file, opts \\ %ObjectOptions{})
-      when is_binary(path) and is_binary(file) do
+  def upload_object(client, bucket, path, file, opts \\ %ObjectOptions{})
+
+  def upload_object(%Client{} = client, id, path, file, opts)
+      when is_binary(id) and is_binary(path) and is_binary(file) and
+             is_struct(opts, ObjectOptions) do
+    upload_object(client, %Bucket{id: id}, path, file, opts)
+  end
+
+  def upload_object(%Client{} = client, %Bucket{} = bucket, path, file, opts)
+      when is_binary(path) and is_binary(file) and is_struct(opts, ObjectOptions) do
     file = Path.expand(file)
-    ObjectHandler.create_file(client, bucket.name, path, file, opts)
+
+    with {:ok, resp} <- ObjectHandler.create_file(client, bucket.name, path, file, opts) do
+      {:ok, resp.body}
+    end
   end
 
   @doc """
@@ -413,9 +482,16 @@ defmodule Supabase.Storage do
 
   """
   @impl true
+  def download_object(%Client{} = client, id, wildcard)
+      when is_binary(id) and is_binary(wildcard) do
+    download_object(client, %Bucket{id: id}, wildcard)
+  end
+
   def download_object(%Client{} = client, %Bucket{} = bucket, wildcard)
       when is_binary(wildcard) do
-    ObjectHandler.get(client, bucket.name, wildcard)
+    with {:ok, resp} <- ObjectHandler.get(client, bucket.name, wildcard) do
+      {:ok, resp.body}
+    end
   end
 
   @doc """
@@ -439,9 +515,17 @@ defmodule Supabase.Storage do
 
   """
   @impl true
-  def download_object_lazy(%Client{} = client, %Bucket{} = bucket, wildcard)
-      when is_binary(wildcard) do
-    ObjectHandler.get_lazy(client, bucket.name, wildcard)
+  def download_object_lazy(client, bucket, wildcard, on_response \\ nil)
+
+  def download_object_lazy(%Client{} = client, id, wildcard, on_response)
+      when is_binary(id) and is_binary(wildcard) and
+             (is_nil(on_response) or is_function(on_response, 1)) do
+    download_object_lazy(client, %Bucket{id: id}, wildcard, on_response)
+  end
+
+  def download_object_lazy(%Client{} = client, %Bucket{} = bucket, wildcard, on_response)
+      when is_binary(wildcard) and (is_nil(on_response) or is_function(on_response, 1)) do
+    ObjectHandler.get_lazy(client, bucket.name, wildcard, on_response)
   end
 
   @doc """
@@ -463,6 +547,11 @@ defmodule Supabase.Storage do
 
   """
   @impl true
+  def save_object(%Client{} = client, path, id, wildcard)
+      when is_binary(id) and is_binary(path) and is_binary(wildcard) do
+    save_object(client, path, %Bucket{id: id}, wildcard)
+  end
+
   def save_object(%Client{} = client, path, %Bucket{} = bucket, wildcard)
       when is_binary(path) and is_binary(wildcard) do
     with {:ok, bin} <- download_object(client, bucket, wildcard) do
@@ -472,7 +561,6 @@ defmodule Supabase.Storage do
 
   @doc """
   Saves an object from a bucket in the current project to a file in the local filesystem.
-  Notice that the request to the server is only made when you start to consume the stream.
 
   ## Notes
 
@@ -490,14 +578,25 @@ defmodule Supabase.Storage do
 
   """
   @impl true
+  def save_object_stream(%Client{} = client, path, id, wildcard)
+      when is_binary(id) and is_binary(path) and is_binary(wildcard) do
+    save_object_stream(client, path, %Bucket{id: id}, wildcard)
+  end
+
   def save_object_stream(%Client{} = client, path, %Bucket{} = bucket, wildcard)
       when is_binary(path) and is_binary(wildcard) do
-    with {:ok, stream} <- download_object_lazy(client, bucket, wildcard) do
+    on_response = fn {status, headers, stream} ->
       fs = File.stream!(Path.expand(path))
 
       stream
       |> Stream.into(fs)
       |> Stream.run()
+
+      {:ok, %Supabase.Fetcher.Response{status: status, headers: headers}}
+    end
+
+    with {:ok, _} <- download_object_lazy(client, bucket, wildcard, on_response) do
+      :ok
     end
   end
 
@@ -522,11 +621,16 @@ defmodule Supabase.Storage do
 
   """
   @impl true
+  def create_signed_url(%Client{} = client, id, path, expires_in)
+      when is_binary(id) and is_binary(path) and is_integer(expires_in) do
+    create_signed_url(client, %Bucket{id: id}, path, expires_in)
+  end
+
   def create_signed_url(%Client{} = client, %Bucket{} = bucket, path, expires_in)
       when is_binary(path) and is_integer(expires_in) do
-    with {:ok, sign_url} <-
+    with {:ok, resp} <-
            ObjectHandler.create_signed_url(client, bucket.name, path, expires_in) do
-      {:ok, URI.to_string(URI.merge(client.conn.base_url, sign_url))}
+      {:ok, URI.to_string(URI.merge(client.base_url, resp.body["signedUrl"]))}
     end
   end
 end
