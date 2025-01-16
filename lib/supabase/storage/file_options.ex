@@ -37,7 +37,7 @@ defmodule Supabase.Storage.FileOptions do
     field(:headers, {:map, :string}, default: %{})
   end
 
-  @spec parse(map) :: t
+  @spec parse(map) :: {:ok, t} | {:error, Ecto.Changeset.t()}
   def parse(attrs) do
     %__MODULE__{}
     |> cast(attrs, @fields)

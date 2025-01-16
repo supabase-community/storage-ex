@@ -66,7 +66,7 @@ defmodule Supabase.Storage.Object do
     field(:last_accessed_at, :naive_datetime)
   end
 
-  @spec parse(map | list(map)) :: t | list(t)
+  @spec parse(map | list(map)) :: {:ok, t | list(t)} | {:error, Ecto.Changeset.t()}
   def parse(attrs) when is_list(attrs) do
     Enum.reduce_while(attrs, [], fn attr, acc ->
       case parse(attr) do
