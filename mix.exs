@@ -1,8 +1,8 @@
 defmodule Supabase.Storage.MixProject do
   use Mix.Project
 
-  @version "0.3.4"
-  @source_url "https://github.com/zoedsoupe/storage-ex"
+  @version "0.4.1"
+  @source_url "https://github.com/supabase-community/storage-ex"
 
   def project do
     [
@@ -13,7 +13,8 @@ defmodule Supabase.Storage.MixProject do
       deps: deps(),
       package: package(),
       description: description(),
-      docs: docs()
+      docs: docs(),
+      dialyzer: [plt_local_path: "priv/plts", ignore_warnings: ".dialyzerignore"]
     ]
   end
 
@@ -27,9 +28,10 @@ defmodule Supabase.Storage.MixProject do
     [
       {:ecto, "~> 3.10"},
       {:supabase_potion, "~> 0.6"},
-      {:ex_doc, ">= 0.0.0", runtime: false},
+      {:mox, "~> 1.2", only: :test},
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.3", only: [:dev], runtime: false}
+      {:dialyxir, "~> 1.3", only: [:dev, :test], runtime: false}
     ]
   end
 

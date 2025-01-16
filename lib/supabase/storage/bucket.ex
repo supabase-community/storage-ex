@@ -3,89 +3,68 @@ defmodule Supabase.Storage.Bucket do
   Represents a Bucket on Supabase Storage.
 
   This module defines the structure and operations related to a storage bucket on Supabase.
-
-  ## Structure
-
-  A `Bucket` consists of:
-
-  - `id`: The unique identifier for the bucket.
-  - `name`: The display name of the bucket.
-  - `owner`: The owner of the bucket.
-  - `file_size_limit`: The maximum file size allowed in the bucket (in bytes). Can be `nil` for no limit.
-  - `allowed_mime_types`: List of MIME types permitted in this bucket. Can be `nil` for no restrictions.
-  - `created_at`: Timestamp indicating when the bucket was created.
-  - `updated_at`: Timestamp indicating the last update to the bucket.
-  - `public`: Boolean flag determining if the bucket is publicly accessible or not.
-
-  ## Functions
-
-  - `parse!/1`: Parses and returns a bucket structure.
-  - `create_changeset/1`: Generates a changeset for creating a bucket.
-  - `update_changeset/2`: Generates a changeset for updating an existing bucket.
-
-  ## Examples
-
-  ### Parsing a bucket
-
-      bucket_attrs = %{
-        id: "bucket_id",
-        name: "My Bucket",
-        ...
-      }
-      Supabase.Storage.Bucket.parse!(bucket_attrs)
-
-  ### Creating a bucket changeset
-
-      new_bucket_attrs = %{
-        id: "new_bucket_id",
-        ...
-      }
-      Supabase.Storage.Bucket.create_changeset(new_bucket_attrs)
-
-  ### Updating a bucket
-
-      existing_bucket = %Supabase.Storage.Bucket{
-        id: "existing_bucket_id",
-        ...
-      }
-      updated_attrs = %{
-        public: true
-      }
-      Supabase.Storage.Bucket.update_changeset(existing_bucket, updated_attrs)
   """
 
   use Ecto.Schema
 
   import Ecto.Changeset
 
+  @typedoc """
+  A `Bucket` consists of:
+
+  - `id`: The unique identifier for the bucket.
+  - `name`: The display name of the bucket.
+  - `owner`: The owner of the bucket.
+  - `file_size_limit`: The maximum file size allowed in the bucket. Can be `nil` for no limit.
+  - `allowed_mime_types`: List of MIME types permitted in this bucket. Can be `nil` for no restrictions.
+  - `created_at`: Timestamp indicating when the bucket was created.
+  - `updated_at`: Timestamp indicating the last update to the bucket.
+  - `public`: Boolean flag determining if the bucket is publicly accessible or not.
+
+  """
   @type t :: %__MODULE__{
-          id: String.t(),
-          name: String.t(),
-          owner: String.t(),
-          file_size_limit: integer | nil,
+          id: String.t() | nil,
+          name: String.t() | nil,
+          owner: String.t() | nil,
+          file_size_limit: file_size_limit_t | nil,
           allowed_mime_types: list(String.t()) | nil,
-          created_at: NaiveDateTime.t(),
-          updated_at: NaiveDateTime.t(),
+          created_at: NaiveDateTime.t() | nil,
+          updated_at: NaiveDateTime.t() | nil,
           public: boolean
         }
 
-  @fields ~w(id name created_at updated_at file_size_limit allowed_mime_types public owner)a
-  @create_fields ~w(id name file_size_limit allowed_mime_types public)a
-  @update_fields ~w(file_size_limit allowed_mime_types public)a
+  @typedoc """
+  A `FileSizeLimit` consists of:
 
-  @primary_key false
+  - `size`: The maximum file size limit itself as an integer.
+  - `unit` The unit of the file size limit, can be: `:byte`, `:megabyte`, `:gigabyte` or `:terabyte`, defaults to `:byte`.
+  """
+  @type file_size_limit_t :: %__MODULE__.FileSizeLimit{
+          size: integer,
+          unit: :byte | :megabyte | :gigabyte | :terabyte
+        }
+
+  @fields ~w(id name created_at updated_at  allowed_mime_types public owner)a
+
+  @primary_key {:id, :string, autogenerate: false}
   embedded_schema do
-    field(:id, :string)
     field(:name, :string)
     field(:owner, :string)
-    field(:file_size_limit, :integer)
     field(:allowed_mime_types, {:array, :string})
     field(:created_at, :naive_datetime)
     field(:updated_at, :naive_datetime)
     field(:public, :boolean, default: false)
+
+    embeds_one :file_size_limit, FileSizeLimit, primary_key: false do
+      @units [:byte, :megabyte, :gigabyte, :terabyte]
+
+      field(:size, :integer)
+      field(:unit, Ecto.Enum, values: @units, default: :byte)
+    end
   end
 
-  @spec parse(map | list(map)) :: t
+  @spec parse(list(map)) :: {:ok, list(t)} | {:error, Ecto.Changeset.t()}
+  @spec parse(map) :: {:ok, t} | {:error, Ecto.Changeset.t()}
   def parse(attrs) when is_list(attrs) do
     Enum.reduce_while(attrs, [], fn attr, acc ->
       case parse(attr) do
@@ -99,43 +78,92 @@ defmodule Supabase.Storage.Bucket do
     end)
   end
 
-  def parse(attrs) do
+  def parse(%{} = attrs) do
     %__MODULE__{}
-    |> cast(attrs, @fields)
-    |> validate_required([:id, :name])
+    |> changeset(attrs)
     |> apply_action(:parse)
   end
 
-  @spec create_changeset(map) :: {:ok, map} | {:error, Ecto.Changeset.t()}
-  def create_changeset(attrs) do
-    %__MODULE__{}
-    |> cast(attrs, @create_fields)
-    |> validate_required([:id])
+  @spec changeset(t, map) :: Ecto.Changeset.t()
+  def changeset(%__MODULE__{} = source, %{} = attrs) do
+    attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+
+    source
+    |> cast(attrs, @fields)
     |> maybe_put_name()
-    |> apply_action(:create)
-    |> case do
-      {:ok, data} -> {:ok, Map.take(data, @create_fields)}
-      err -> err
-    end
+    |> parse_file_size_limit(attrs)
+    |> cast_embed(:file_size_limit, with: &file_size_limit_changeset/2)
+    |> validate_required([:id, :name, :public])
   end
+
+  defp maybe_put_name(%{valid?: false} = changeset), do: changeset
 
   defp maybe_put_name(changeset) do
-    if get_change(changeset, :name) do
-      changeset
-    else
-      id = get_change(changeset, :id)
-      put_change(changeset, :name, id)
+    name = get_field(changeset, :name)
+    id = get_field(changeset, :id)
+
+    if name, do: changeset, else: put_change(changeset, :name, id)
+  end
+
+  defp parse_file_size_limit(%{valid?: false} = changeset, _attrs), do: changeset
+
+  defp parse_file_size_limit(changeset, %{"file_size_limit" => file_size_limit})
+       when is_integer(file_size_limit) do
+    put_in(changeset.params["file_size_limit"], %{size: file_size_limit, unit: :byte})
+  end
+
+  defp parse_file_size_limit(changeset, %{"file_size_limit" => file_size_limit})
+       when is_binary(file_size_limit) do
+    {file_size_limit, unit} = Integer.parse(file_size_limit)
+
+    unit =
+      case String.upcase(unit) do
+        "MB" -> :megabyte
+        "TB" -> :terabyte
+        "GB" -> :gigabyte
+        _ -> :byte
+      end
+
+    put_in(changeset.params["file_size_limit"], %{size: file_size_limit, unit: unit})
+  end
+
+  defp parse_file_size_limit(changeset, _attrs), do: changeset
+
+  defp file_size_limit_changeset(source, attrs) do
+    source
+    |> cast(attrs, [:size, :unit])
+    |> validate_required([:size])
+  end
+
+  defimpl Jason.Encoder, for: __MODULE__ do
+    alias Supabase.Storage.Bucket
+
+    def encode(%Bucket{} = bucket, opts) do
+      bucket
+      |> Map.take([:id, :name, :public, :allowed_mime_types])
+      |> Map.put_new_lazy(:file_size_limit, fn ->
+        cond do
+          is_nil(bucket.file_size_limit) -> nil
+          is_nil(bucket.file_size_limit.size) -> nil
+          bucket.file_size_limit.unit == :byte -> bucket.file_size_limit.size
+          true -> to_string(bucket.file_size_limit)
+        end
+      end)
+      |> Jason.Encode.map(opts)
     end
   end
 
-  @spec update_changeset(t, map) :: {:ok, map} | {:error, Ecto.Changeset.t()}
-  def update_changeset(%__MODULE__{} = bucket, attrs) do
-    bucket
-    |> cast(attrs, @update_fields)
-    |> apply_action(:update)
-    |> case do
-      {:ok, data} -> {:ok, Map.take(data, @update_fields)}
-      err -> err
+  defimpl String.Chars, for: __MODULE__.FileSizeLimit do
+    alias Supabase.Storage.Bucket.FileSizeLimit
+
+    def to_string(%FileSizeLimit{size: size} = file_size_limit) do
+      Kernel.to_string(size) <>
+        case file_size_limit.unit do
+          :byte -> "B"
+          :megabyte -> "MB"
+          :gigabyte -> "GB"
+          :terabyte -> "TB"
+        end
     end
   end
 end

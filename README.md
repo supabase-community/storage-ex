@@ -7,8 +7,8 @@
 ```elixir
 def deps do
   [
-    {:supabase_potion, "~> 0.5"},
-    {:supabase_storage, "~> 0.3"}
+    {:supabase_potion, "~> 0.6"},
+    {:supabase_storage, "~> 0.4"}
   ]
 end
 ```
