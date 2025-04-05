@@ -151,13 +151,26 @@ defmodule Supabase.Storage.FileHandler do
   def create_signed_url(%Client{} = client, bucket_id, path, opts) do
     expires_in = Keyword.fetch!(opts, :expires_in)
     transform = Keyword.get(opts, :transform)
-    {:ok, transform} = if transform, do: Transform.parse(transform), else: {:ok, %Transform{}}
+
     uri = Endpoints.file_signed_url(bucket_id, path)
+
+    transform =
+      if transform do
+        {:ok, parsed} = Transform.parse(transform)
+        parsed
+      end
+
+    body =
+      if transform do
+        %{expiresIn: expires_in, transform: transform}
+      else
+        %{expiresIn: expires_in}
+      end
 
     client
     |> Storage.Request.base(uri)
     |> Request.with_headers(%{"content-type" => "application/json"})
-    |> Request.with_body(%{expiresIn: expires_in, transform: transform})
+    |> Request.with_body(body)
     |> Request.with_method(:post)
     |> Fetcher.request()
   end

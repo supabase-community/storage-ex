@@ -1,7 +1,7 @@
 defmodule Supabase.Storage.MixProject do
   use Mix.Project
 
-  @version "0.4.1"
+  @version "0.4.2"
   @source_url "https://github.com/supabase-community/storage-ex"
 
   def project do
