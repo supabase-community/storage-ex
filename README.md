@@ -8,7 +8,7 @@
 def deps do
   [
     {:supabase_potion, "~> 0.6"},
-    {:supabase_storage, "~> 0.4"}
+    {:supabase_storage, "~> 0.4.2"} # x-release-please-version
   ]
 end
 ```
