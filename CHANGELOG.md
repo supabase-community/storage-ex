@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.3](https://github.com/supabase-community/storage-ex/compare/v0.4.2...v0.4.3) (2025-09-08)
+
+
+### Bug Fixes
+
+* update docs accordingly to Object -&gt; File rename ([#10](https://github.com/supabase-community/storage-ex/issues/10)) ([5b29f7f](https://github.com/supabase-community/storage-ex/commit/5b29f7fa877583dc19d674b92f6d28057de83415))
+
 ## [0.4.2](https://github.com/supabase-community/storage-ex/compare/v0.4.2...v0.4.2) (2025-07-15)
 
 
