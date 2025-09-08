@@ -30,7 +30,7 @@ defmodule Supabase.Storage.SearchOptions do
   @fields ~w(limit offset sort_by search)a
 
   @primary_key false
-  @derive Jason.Encoder
+  @derive Code.ensure_loaded!(Supabase) && Module.concat(Supabase.json_library(), Encoder)
   embedded_schema do
     field(:limit, :integer, default: 100)
     field(:offset, :integer, default: 0)
@@ -38,7 +38,7 @@ defmodule Supabase.Storage.SearchOptions do
 
     embeds_one :sort_by, SortBy, primary_key: false, defaults_to_struct: true do
       @moduledoc false
-      @derive Jason.Encoder
+      @derive Code.ensure_loaded!(Supabase) && Module.concat(Supabase.json_library(), Encoder)
       field(:column, :string, default: "name")
       field(:order, Ecto.Enum, values: [:asc, :desc], default: :asc)
     end

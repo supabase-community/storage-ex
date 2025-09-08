@@ -136,10 +136,12 @@ defmodule Supabase.Storage.Bucket do
     |> validate_required([:size])
   end
 
-  defimpl Jason.Encoder, for: __MODULE__ do
+  @encoder Code.ensure_loaded!(Supabase) && Module.concat(Supabase.json_library(), Encoder)
+
+  defimpl @encoder, for: __MODULE__ do
     alias Supabase.Storage.Bucket
 
-    def encode(%Bucket{} = bucket, opts) do
+    def encode(%Bucket{} = bucket, _opts) do
       bucket
       |> Map.take([:id, :name, :public, :allowed_mime_types])
       |> Map.put_new_lazy(:file_size_limit, fn ->
@@ -150,7 +152,7 @@ defmodule Supabase.Storage.Bucket do
           true -> to_string(bucket.file_size_limit)
         end
       end)
-      |> Jason.Encode.map(opts)
+      |> Supabase.json_library().encode!()
     end
   end
 
