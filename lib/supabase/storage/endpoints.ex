@@ -1,5 +1,5 @@
 defmodule Supabase.Storage.Endpoints do
-  @moduledoc "Defines the Endpoints for the Supabase Storage API"
+  @moduledoc false
 
   def bucket_path do
     "/bucket"

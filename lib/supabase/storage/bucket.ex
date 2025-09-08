@@ -56,6 +56,7 @@ defmodule Supabase.Storage.Bucket do
     field(:public, :boolean, default: false)
 
     embeds_one :file_size_limit, FileSizeLimit, primary_key: false do
+      @moduledoc false
       @units [:byte, :megabyte, :gigabyte, :terabyte]
 
       field(:size, :integer)

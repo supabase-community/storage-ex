@@ -1,13 +1,5 @@
 defmodule Supabase.Storage.BucketHandler do
-  @moduledoc """
-  Provides low-level API functions for managing Supabase Storage buckets.
-
-  The #{__MODULE__} module offers a collection of functions that directly interact with the Supabase Storage API for managing buckets. This module works closely with the `Supabase.Fetcher` for sending HTTP requests.
-
-  ## Caution
-
-  This module provides a low-level interface to Supabase Storage buckets and is designed for internal use by the `Supabase.Storage` module. Direct use is discouraged unless you need to perform custom or unsupported actions that are not available through the higher-level API. Incorrect use can lead to unexpected results or data loss.
-  """
+  @moduledoc false
 
   alias Supabase.Client
   alias Supabase.Fetcher

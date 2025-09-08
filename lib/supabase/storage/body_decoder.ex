@@ -1,5 +1,5 @@
 defmodule Supabase.Storage.BodyDecoder do
-  @moduledoc "Custom body decoder, tries to parse to a Storage entity or an Error"
+  @moduledoc false
 
   alias Supabase.Fetcher.JSONDecoder
   alias Supabase.Fetcher.Response

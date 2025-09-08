@@ -1,5 +1,5 @@
 defmodule Supabase.Storage.Request do
-  @moduledoc "Helper to build the base request builder for Storage services"
+  @moduledoc false
 
   alias Supabase.Client
   alias Supabase.Fetcher.Request
