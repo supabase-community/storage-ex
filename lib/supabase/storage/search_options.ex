@@ -37,6 +37,7 @@ defmodule Supabase.Storage.SearchOptions do
     field(:search, :string)
 
     embeds_one :sort_by, SortBy, primary_key: false, defaults_to_struct: true do
+      @moduledoc false
       @derive Jason.Encoder
       field(:column, :string, default: "name")
       field(:order, Ecto.Enum, values: [:asc, :desc], default: :asc)
