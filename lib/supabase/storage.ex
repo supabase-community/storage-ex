@@ -9,21 +9,26 @@ defmodule Supabase.Storage do
 
   You can start by creating or managing buckets:
 
-      Supabase.Storage.create_bucket(client, "my_new_bucket")
+      {:ok, bucket} = Supabase.Storage.create_bucket(client, "my_new_bucket")
 
   Once a bucket is set up, objects within the bucket can be managed:
 
-      Supabase.Storage.upload_object(client, "my_bucket", "path/on/server.png", "path/on/local.png")
+      alias Supabase.Storage
+      {:ok, s} = Storage.from(client, "my_bucket")
+      {:ok, file_} Storage.File.upload(s, "path/on/local.png", "path/on/storage.png")
 
   ## Examples
 
   Here are some basic examples:
 
+      alias Supabase.Storage
+      {:ok, s} = Storage.from(client, "my_bucket")
+
       # Removing an object
-      Supabase.Storage.remove_object(client, "my_bucket", "path/on/server.png")
+      Storage.File.remove(s, "path/on/storage.png")
 
       # Moving an object
-      Supabase.Storage.move_object(client, "my_bucket", "path/on/server1.png", "path/on/server2.png")
+      Storage.File.move(s, from: "path/on/server1.png", to: "path/on/server2.png")
 
   Ensure to refer to method-specific documentation for detailed examples and explanations.
 
