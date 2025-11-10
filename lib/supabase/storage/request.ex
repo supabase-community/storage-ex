@@ -5,7 +5,8 @@ defmodule Supabase.Storage.Request do
   alias Supabase.Fetcher.Request
 
   def base(%Client{} = client, path) when is_binary(path) do
-    Request.new(client)
+    client
+    |> Request.new(decode_body?: true, parse_http_error?: true)
     |> Request.with_storage_url(path)
     |> Request.with_error_parser(Supabase.Storage.Error)
     |> Request.with_http_client(http_client())
