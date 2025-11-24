@@ -152,7 +152,7 @@ defmodule Supabase.Storage.Bucket do
           true -> to_string(bucket.file_size_limit)
         end
       end)
-      |> Supabase.json_library().encode!()
+      |> Supabase.encode_json()
     end
   end
 
