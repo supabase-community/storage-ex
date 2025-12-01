@@ -40,6 +40,24 @@ defmodule Supabase.Storage.FileHandler do
     |> Fetcher.upload(file_path)
   end
 
+  @spec update_file(Client.t(), bucket_id, object_path, file_path, opts) ::
+          Supabase.result(Response.t())
+  def update_file(%Client{} = client, bucket, object_path, file_path, %Opts{} = opts) do
+    uri = Endpoints.file_update(bucket, object_path)
+
+    client
+    |> Storage.Request.base(uri)
+    |> Request.with_method(:put)
+    |> Request.with_headers(%{
+      "cache-control" => "max-age=#{opts.cache_control}",
+      "content-type" => opts.content_type,
+      "x-upsert" => to_string(opts.upsert),
+      "x-metadata" => Base.encode64(Jason.encode!(opts.metadata))
+    })
+    |> Request.with_headers(opts.headers)
+    |> Fetcher.upload(file_path)
+  end
+
   @spec create_file_to_url(Client.t(), bucket_id, token, object_path, file_path, opts) ::
           Supabase.result(Response.t())
   def create_file_to_url(
