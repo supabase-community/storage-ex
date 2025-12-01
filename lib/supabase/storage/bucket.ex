@@ -20,6 +20,7 @@ defmodule Supabase.Storage.Bucket do
   - `created_at`: Timestamp indicating when the bucket was created.
   - `updated_at`: Timestamp indicating the last update to the bucket.
   - `public`: Boolean flag determining if the bucket is publicly accessible or not.
+  - `type`: The type of bucket - either `:standard` or `:analytics`. Defaults to `:standard`.
 
   """
   @type t :: %__MODULE__{
@@ -30,7 +31,8 @@ defmodule Supabase.Storage.Bucket do
           allowed_mime_types: list(String.t()) | nil,
           created_at: NaiveDateTime.t() | nil,
           updated_at: NaiveDateTime.t() | nil,
-          public: boolean
+          public: boolean,
+          type: :standard | :analytics
         }
 
   @typedoc """
@@ -44,7 +46,7 @@ defmodule Supabase.Storage.Bucket do
           unit: :byte | :megabyte | :gigabyte | :terabyte
         }
 
-  @fields ~w(id name created_at updated_at  allowed_mime_types public owner)a
+  @fields ~w(id name created_at updated_at  allowed_mime_types public owner type)a
 
   @primary_key {:id, :string, autogenerate: false}
   embedded_schema do
@@ -54,6 +56,7 @@ defmodule Supabase.Storage.Bucket do
     field(:created_at, :naive_datetime)
     field(:updated_at, :naive_datetime)
     field(:public, :boolean, default: false)
+    field(:type, Ecto.Enum, values: [:standard, :analytics], default: :standard)
 
     embeds_one :file_size_limit, FileSizeLimit, primary_key: false do
       @moduledoc false
@@ -87,7 +90,10 @@ defmodule Supabase.Storage.Bucket do
 
   @spec changeset(t, map) :: Ecto.Changeset.t()
   def changeset(%__MODULE__{} = source, %{} = attrs) do
-    attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+    attrs =
+      attrs
+      |> Map.new(fn {k, v} -> {to_string(k), v} end)
+      |> normalize_type()
 
     source
     |> cast(attrs, @fields)
@@ -96,6 +102,19 @@ defmodule Supabase.Storage.Bucket do
     |> cast_embed(:file_size_limit, with: &file_size_limit_changeset/2)
     |> validate_required([:id, :name, :public])
   end
+
+  defp normalize_type(%{"type" => type} = attrs) when is_binary(type) do
+    normalized =
+      case String.downcase(type) do
+        "standard" -> "standard"
+        "analytics" -> "analytics"
+        _ -> "standard"
+      end
+
+    Map.put(attrs, "type", normalized)
+  end
+
+  defp normalize_type(attrs), do: attrs
 
   defp maybe_put_name(%{valid?: false} = changeset), do: changeset
 
@@ -148,6 +167,13 @@ defmodule Supabase.Storage.Bucket do
           is_nil(bucket.file_size_limit.size) -> nil
           bucket.file_size_limit.unit == :byte -> bucket.file_size_limit.size
           true -> to_string(bucket.file_size_limit)
+        end
+      end)
+      |> Map.put_new_lazy(:type, fn ->
+        if bucket.type do
+          bucket.type |> Atom.to_string() |> String.upcase()
+        else
+          "STANDARD"
         end
       end)
       |> Jason.Encode.map(opts)
