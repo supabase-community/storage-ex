@@ -292,20 +292,60 @@ defmodule Supabase.Storage.File do
     end
   end
 
+  @doc """
+    Creates signed URLs for multiple files within a bucket.
+
+    ## Params
+
+    - `storage`: The `Supabase.Storage` instance created with `Supabase.Storage.from/2`.
+    - `paths`: A list of file paths to create signed URLs for.
+    - `opts`: A keyword list of options.
+
+    ## Options
+
+    - `:download`: A boolean or string indicating whether to download the file.
+    - `:transform`: An enumerable of transformations to apply to the file.
+    - `:expires_in`: An integer indicating the expiration time in seconds.
+
+    ## Returns
+
+    A `Supabase.result` containing a list of signed URLs.
+  """
   @spec create_signed_urls(Storage.t(), list(object_path), options) ::
-          Supabase.result(%{path: String.t(), signed_url: String.t()})
+          Supabase.result(list(result))
         when object_path: Path.t(),
+             result: %{path: String.t(), signed_url: String.t(), error: term | nil},
              options:
                list(
                  {:download, boolean | String.t() | nil}
                  | {:transform, Enumerable.t() | nil}
                  | {:expires_in, integer}
                )
-  def create_signed_urls(%Storage{} = s, paths, opts \\ %{}) do
-    {:ok, opts} = SearchOptions.parse(opts)
+  def create_signed_urls(%Storage{} = s, paths, opts \\ []) when is_list(paths) do
+    _ = Keyword.fetch!(opts, :expires_in)
+    download = Keyword.get(opts, :download)
 
-    with {:ok, resp} <- FileHandler.create_signed_url(s.client, s.bucket_id, paths, opts) do
-      {:ok, resp.body}
+    clean_paths =
+      Enum.map(paths, &(String.replace(&1, ~r/^\/|\/$/, "") |> String.replace(~r/\/+/, "/")))
+
+    with {:ok, resp} <- FileHandler.create_signed_urls(s.client, s.bucket_id, clean_paths, opts) do
+      items =
+        Enum.map(resp.body, &%{path: &1["path"], signed_url: &1["signedURL"], error: &1["error"]})
+
+      {:ok,
+       for item <- items do
+         uri = URI.parse(Path.join(s.client.storage_url, item.signed_url))
+
+         if is_nil(download) do
+           %{item | signed_url: to_string(uri)}
+         else
+           query =
+             URI.encode_query(%{"download" => if(download === true, do: "", else: download)})
+
+           uri = URI.append_query(uri, query)
+           %{item | signed_url: to_string(uri)}
+         end
+       end}
     end
   end
 

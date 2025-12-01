@@ -150,7 +150,7 @@ defmodule Supabase.Storage.FileHandler do
 
   @spec create_signed_url(Client.t(), bucket_id, object_path, keyword) ::
           Supabase.result(Response.t())
-  def create_signed_url(%Client{} = client, bucket_id, path, opts) when is_binary(path) do
+  def create_signed_url(%Client{} = client, bucket_id, path, opts) do
     expires_in = Keyword.fetch!(opts, :expires_in)
     transform = Keyword.get(opts, :transform)
 
@@ -177,9 +177,9 @@ defmodule Supabase.Storage.FileHandler do
     |> Fetcher.request()
   end
 
-  @spec create_signed_url(Client.t(), bucket_id, list(object_path), keyword) ::
+  @spec create_signed_urls(Client.t(), bucket_id, list(object_path), keyword) ::
           Supabase.result(Response.t())
-  def create_signed_url(%Client{} = client, bucket_id, paths, opts) when is_list(paths) do
+  def create_signed_urls(%Client{} = client, bucket_id, paths, opts) when is_list(paths) do
     expires_in = Keyword.fetch!(opts, :expires_in)
     transform = Keyword.get(opts, :transform)
 
