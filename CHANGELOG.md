@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.0](https://github.com/supabase-community/storage-ex/compare/v0.4.3...v0.5.0) (2025-12-01)
+
+
+### Features
+
+* batch create signed url function ([#23](https://github.com/supabase-community/storage-ex/issues/23)) ([d1e76b0](https://github.com/supabase-community/storage-ex/commit/d1e76b07ba626c5985f314bd34e7a6c4798acded))
+* bucket type support ([#24](https://github.com/supabase-community/storage-ex/issues/24)) ([625b6bc](https://github.com/supabase-community/storage-ex/commit/625b6bc6dcd2098f79fabc883d82760c4a6a1ce3))
+* list v2 method ([#25](https://github.com/supabase-community/storage-ex/issues/25)) ([bcb079c](https://github.com/supabase-community/storage-ex/commit/bcb079c46d5d63768fd7267be99d51429d80fd22))
+* update file function ([#21](https://github.com/supabase-community/storage-ex/issues/21)) ([86b7dc5](https://github.com/supabase-community/storage-ex/commit/86b7dc50e330a0f22162fb07aad6ce3a07969184))
+
 ## [0.4.3](https://github.com/supabase-community/storage-ex/compare/v0.4.2...v0.4.3) (2025-09-08)
 
 
