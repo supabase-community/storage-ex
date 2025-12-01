@@ -53,6 +53,10 @@ defmodule Supabase.Storage.Endpoints do
     "/object/sign/#{bucket}/#{path}"
   end
 
+  def file_signed_url(bucket) do
+    "/object/sign/#{bucket}"
+  end
+
   def file_upload_signed_url(bucket, path) do
     "/object/upload/sign/#{bucket}/#{path}"
   end

@@ -292,6 +292,23 @@ defmodule Supabase.Storage.File do
     end
   end
 
+  @spec create_signed_urls(Storage.t(), list(object_path), options) ::
+          Supabase.result(%{path: String.t(), signed_url: String.t()})
+        when object_path: Path.t(),
+             options:
+               list(
+                 {:download, boolean | String.t() | nil}
+                 | {:transform, Enumerable.t() | nil}
+                 | {:expires_in, integer}
+               )
+  def create_signed_urls(%Storage{} = s, paths, opts \\ %{}) do
+    {:ok, opts} = SearchOptions.parse(opts)
+
+    with {:ok, resp} <- FileHandler.create_signed_url(s.client, s.bucket_id, paths, opts) do
+      {:ok, resp.body}
+    end
+  end
+
   @doc """
   Lists all the files within a bucket.
 
