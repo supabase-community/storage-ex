@@ -24,10 +24,18 @@ defmodule Supabase.Storage.MixProject do
     ]
   end
 
+  defp supabase_dep do
+    if System.get_env("SUPABASE_LOCAL") == "1" do
+      {:supabase_potion, path: "../supabase-ex"}
+    else
+      {:supabase_potion, "~> 0.6"}
+    end
+  end
+
   defp deps do
     [
+      supabase_dep(),
       {:ecto, "~> 3.10"},
-      {:supabase_potion, "~> 0.6"},
       {:mox, "~> 1.2", only: :test},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},

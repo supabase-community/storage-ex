@@ -117,7 +117,7 @@ defmodule Supabase.StorageTest do
         {:ok, %Finch.Response{status: 201, headers: [], body: ~s({"name": "main"})}}
       end)
       |> expect(:request, fn %Request{}, _opts ->
-        body = Jason.encode!(%Bucket{id: "some", name: "some"})
+        body = Supabase.encode_json(%Bucket{id: "some", name: "some"})
         {:ok, %Finch.Response{status: 200, headers: [], body: body}}
       end)
 

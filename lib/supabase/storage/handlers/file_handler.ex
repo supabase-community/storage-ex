@@ -26,6 +26,7 @@ defmodule Supabase.Storage.FileHandler do
           Supabase.result(Response.t())
   def create_file(%Client{} = client, bucket, object_path, file_path, %Opts{} = opts) do
     uri = Endpoints.file_upload(bucket, object_path)
+    metadata = Supabase.encode_json(opts.metadata)
 
     client
     |> Storage.Request.base(uri)
@@ -34,7 +35,7 @@ defmodule Supabase.Storage.FileHandler do
       "cache-control" => "max-age=#{opts.cache_control}",
       "content-type" => opts.content_type,
       "x-upsert" => to_string(opts.upsert),
-      "x-metadata" => Base.encode64(Jason.encode!(opts.metadata))
+      "x-metadata" => Base.encode64(metadata)
     })
     |> Request.with_headers(opts.headers)
     |> Fetcher.upload(file_path)
@@ -69,6 +70,7 @@ defmodule Supabase.Storage.FileHandler do
         %Opts{} = opts
       ) do
     uri = Endpoints.file_upload_to_url(bucket, object_path)
+    metadata = Supabase.encode_json(opts.metadata)
 
     client
     |> Storage.Request.base(uri)
@@ -78,7 +80,7 @@ defmodule Supabase.Storage.FileHandler do
       "cache-control" => "max-age=#{opts.cache_control}",
       "content-type" => opts.content_type,
       "x-upsert" => to_string(opts.upsert),
-      "x-metadata" => Base.encode64(Jason.encode!(opts.metadata))
+      "x-metadata" => Base.encode64(metadata)
     })
     |> Request.with_headers(opts.headers)
     |> Fetcher.upload(file_path)
