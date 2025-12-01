@@ -45,6 +45,10 @@ defmodule Supabase.Storage.Endpoints do
     "/object/list/#{bucket}"
   end
 
+  def file_list_v2(bucket) do
+    "/object/list-v2/#{bucket}"
+  end
+
   def file_remove(bucket) do
     "/object/#{bucket}"
   end
