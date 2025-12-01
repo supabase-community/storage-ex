@@ -12,6 +12,7 @@ defmodule Supabase.Storage.File do
   alias Supabase.Storage
   alias Supabase.Storage.FileHandler
   alias Supabase.Storage.FileOptions
+  alias Supabase.Storage.ListV2Options
   alias Supabase.Storage.SearchOptions
   alias Supabase.Storage.TransformOptions
 
@@ -365,6 +366,88 @@ defmodule Supabase.Storage.File do
 
     with {:ok, resp} <- FileHandler.list(s.client, s.bucket_id, prefix, opts) do
       {:ok, resp.body}
+    end
+  end
+
+  @doc """
+  Lists files using cursor-based pagination (v2 API - Experimental).
+
+  This method uses cursor-based pagination which is more efficient than offset-based
+  pagination for large datasets. Cursor pagination has O(1) complexity regardless of
+  the position in the dataset, while offset pagination becomes slower as the offset increases.
+
+  ## Performance Comparison
+
+  - Offset-based: `OFFSET 100000 LIMIT 100` - Very slow (must skip 100,000 records)
+  - Cursor-based: Always fast regardless of position
+
+  ## Params
+
+  - `storage`: The `Supabase.Storage` instance created with `Supabase.Storage.from/2`.
+  - `prefix`: The folder path.
+  - `options`: An `Enumerable` with the following keys:
+    - `limit`: Number of results per page (default: 100)
+    - `cursor`: Pagination cursor from previous response
+    - `with_delimiter`: Enable folder hierarchy grouping (default: false)
+
+  ## Returns
+
+  A map with:
+  - `has_next`: Boolean indicating if there are more pages
+  - `cursor`: Cursor to use for the next page (if `has_next` is true)
+  - `folders`: List of folder names (when `with_delimiter` is true)
+  - `objects`: List of file objects
+
+  ## Examples
+
+      # First page
+      {:ok, %{has_next: true, cursor: cursor, objects: files}} =
+        Supabase.Storage.File.list_v2(storage, "public/", %{limit: 100})
+
+      # Next page using cursor
+      {:ok, %{has_next: false, objects: more_files}} =
+        Supabase.Storage.File.list_v2(storage, "public/", %{limit: 100, cursor: cursor})
+
+      # With folder hierarchy
+      {:ok, %{folders: folders, objects: files}} =
+        Supabase.Storage.File.list_v2(storage, "public/", %{with_delimiter: true})
+
+  """
+  @spec list_v2(Storage.t(), Path.t() | nil, options :: Enumerable.t()) ::
+          Supabase.result(%{
+            has_next: boolean(),
+            cursor: String.t() | nil,
+            folders: list(String.t()),
+            objects: list(t)
+          })
+  def list_v2(%Storage{} = s, prefix \\ nil, opts \\ %{}) do
+    {:ok, opts} = ListV2Options.parse(opts)
+
+    with {:ok, resp} <- FileHandler.list_v2(s.client, s.bucket_id, prefix, opts) do
+      body = resp.body
+
+      # Parse the objects if they exist
+      objects =
+        case body["objects"] do
+          nil -> []
+          objs when is_list(objs) -> Enum.map(objs, &parse_object/1)
+        end
+
+      result = %{
+        has_next: body["hasNext"] || false,
+        cursor: body["cursor"],
+        folders: body["folders"] || [],
+        objects: objects
+      }
+
+      {:ok, result}
+    end
+  end
+
+  defp parse_object(obj) when is_map(obj) do
+    case __MODULE__.parse(obj) do
+      {:ok, file} -> file
+      {:error, _} -> obj
     end
   end
 

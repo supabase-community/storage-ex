@@ -10,6 +10,7 @@ defmodule Supabase.Storage.FileHandler do
   alias Supabase.Storage.Endpoints
   alias Supabase.Storage.File
   alias Supabase.Storage.FileOptions, as: Opts
+  alias Supabase.Storage.ListV2Options, as: ListV2
   alias Supabase.Storage.SearchOptions, as: Search
   alias Supabase.Storage.TransformOptions, as: Transform
 
@@ -18,6 +19,7 @@ defmodule Supabase.Storage.FileHandler do
   @type file_path :: Path.t()
   @type opts :: Opts.t()
   @type search_opts :: Search.t()
+  @type list_v2_opts :: ListV2.t()
   @type wildcard :: String.t()
   @type prefix :: String.t() | nil
   @type token :: String.t()
@@ -134,6 +136,25 @@ defmodule Supabase.Storage.FileHandler do
     |> Request.with_body_decoder(BodyDecoder, schema: File)
     |> Request.with_headers(%{"content-type" => "application/json"})
     |> Request.with_body(body)
+    |> Fetcher.request()
+  end
+
+  @spec list_v2(Client.t(), bucket_id, prefix, list_v2_opts) :: Supabase.result(Response.t())
+  def list_v2(%Client{} = client, bucket_id, prefix, %ListV2{} = opts) do
+    uri = Endpoints.file_list_v2(bucket_id)
+
+    body =
+      opts
+      |> Map.from_struct()
+      |> Map.merge(%{prefix: prefix || ""})
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    client
+    |> Storage.Request.base(uri)
+    |> Request.with_headers(%{"content-type" => "application/json"})
+    |> Request.with_body(body)
+    |> Request.with_method(:post)
     |> Fetcher.request()
   end
 
