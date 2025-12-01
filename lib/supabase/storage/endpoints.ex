@@ -33,6 +33,10 @@ defmodule Supabase.Storage.Endpoints do
     "/object/upload/sign/#{bucket}/#{path}"
   end
 
+  def file_update(bucket, object_path) do
+    "/object/#{bucket}/#{object_path}"
+  end
+
   def file_info(bucket, wildcard) do
     "/object/info/authenticated/#{bucket}/#{wildcard}"
   end

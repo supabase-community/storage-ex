@@ -109,6 +109,34 @@ defmodule Supabase.Storage.File do
   end
 
   @doc """
+  Update a file in the storage bucket.
+
+  ## Params
+
+  - `storage`: The `Supabase.Storage` instance created with `Supabase.Storage.from/2`.
+  - `file_path`: The **local** filesystem path, to upload from.
+  - `object_path`: The file path, including the file name. Should be of the format `folder/subfolder/filename.png`. The bucket must already exist before attempting to upload.
+  - `options`: Optional `Enumerable` that represents the `Supabase.Storage.FileOptions`.
+  """
+  @spec update(Storage.t(), file_path, object_path, options) :: Supabase.result(map)
+        when file_path: Path.t(),
+             object_path: Path.t(),
+             options: Enumerable.t()
+  def update(%Storage{} = s, file_path, object_path, opts \\ %{}) do
+    {:ok, opts} = FileOptions.parse(opts)
+
+    clean_path =
+      object_path
+      |> String.replace(~r/^\/|\/$/, "")
+      |> String.replace(~r/\/+/, "/")
+
+    with {:ok, %{body: body}} <-
+           FileHandler.update_file(s.client, s.bucket_id, clean_path, file_path, opts) do
+      {:ok, %{path: clean_path, id: body["Id"], key: body["Key"]}}
+    end
+  end
+
+  @doc """
   Upload a file with a token generated from `create_signed_upload_url/3`.
 
   ## Params
@@ -370,7 +398,7 @@ defmodule Supabase.Storage.File do
 
   @doc """
   Retrieves the details of an existing file.
-    
+
   ## Params
 
   - `storage`: The `Supabase.Storage` instance created with `Supabase.Storage.from/2`.
