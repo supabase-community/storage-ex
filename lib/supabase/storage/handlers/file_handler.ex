@@ -10,6 +10,7 @@ defmodule Supabase.Storage.FileHandler do
   alias Supabase.Storage.Endpoints
   alias Supabase.Storage.File
   alias Supabase.Storage.FileOptions, as: Opts
+  alias Supabase.Storage.ListV2Options, as: ListV2
   alias Supabase.Storage.SearchOptions, as: Search
   alias Supabase.Storage.TransformOptions, as: Transform
 
@@ -18,6 +19,7 @@ defmodule Supabase.Storage.FileHandler do
   @type file_path :: Path.t()
   @type opts :: Opts.t()
   @type search_opts :: Search.t()
+  @type list_v2_opts :: ListV2.t()
   @type wildcard :: String.t()
   @type prefix :: String.t() | nil
   @type token :: String.t()
@@ -36,6 +38,24 @@ defmodule Supabase.Storage.FileHandler do
       "content-type" => opts.content_type,
       "x-upsert" => to_string(opts.upsert),
       "x-metadata" => Base.encode64(metadata)
+    })
+    |> Request.with_headers(opts.headers)
+    |> Fetcher.upload(file_path)
+  end
+
+  @spec update_file(Client.t(), bucket_id, object_path, file_path, opts) ::
+          Supabase.result(Response.t())
+  def update_file(%Client{} = client, bucket, object_path, file_path, %Opts{} = opts) do
+    uri = Endpoints.file_update(bucket, object_path)
+
+    client
+    |> Storage.Request.base(uri)
+    |> Request.with_method(:put)
+    |> Request.with_headers(%{
+      "cache-control" => "max-age=#{opts.cache_control}",
+      "content-type" => opts.content_type,
+      "x-upsert" => to_string(opts.upsert),
+      "x-metadata" => Base.encode64(Jason.encode!(opts.metadata))
     })
     |> Request.with_headers(opts.headers)
     |> Fetcher.upload(file_path)
@@ -121,6 +141,25 @@ defmodule Supabase.Storage.FileHandler do
     |> Fetcher.request()
   end
 
+  @spec list_v2(Client.t(), bucket_id, prefix, list_v2_opts) :: Supabase.result(Response.t())
+  def list_v2(%Client{} = client, bucket_id, prefix, %ListV2{} = opts) do
+    uri = Endpoints.file_list_v2(bucket_id)
+
+    body =
+      opts
+      |> Map.from_struct()
+      |> Map.merge(%{prefix: prefix || ""})
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    client
+    |> Storage.Request.base(uri)
+    |> Request.with_headers(%{"content-type" => "application/json"})
+    |> Request.with_body(body)
+    |> Request.with_method(:post)
+    |> Fetcher.request()
+  end
+
   @spec remove_list(Client.t(), bucket_id, list(object_path)) :: Supabase.result(Response.t())
   def remove_list(%Client{} = client, bucket_id, paths) do
     uri = Endpoints.file_remove(bucket_id)
@@ -151,6 +190,29 @@ defmodule Supabase.Storage.FileHandler do
         %{expiresIn: expires_in, transform: transform}
       else
         %{expiresIn: expires_in}
+      end
+
+    client
+    |> Storage.Request.base(uri)
+    |> Request.with_headers(%{"content-type" => "application/json"})
+    |> Request.with_body(body)
+    |> Request.with_method(:post)
+    |> Fetcher.request()
+  end
+
+  @spec create_signed_urls(Client.t(), bucket_id, list(object_path), keyword) ::
+          Supabase.result(Response.t())
+  def create_signed_urls(%Client{} = client, bucket_id, paths, opts) when is_list(paths) do
+    expires_in = Keyword.fetch!(opts, :expires_in)
+    transform = Keyword.get(opts, :transform)
+
+    uri = Endpoints.file_signed_url(bucket_id)
+
+    body =
+      if transform do
+        %{expiresIn: expires_in, transform: transform, paths: paths}
+      else
+        %{expiresIn: expires_in, paths: paths}
       end
 
     client

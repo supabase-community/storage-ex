@@ -45,7 +45,7 @@ defmodule Supabase.Storage.BucketHandler do
   @spec update(Client.t(), bucket_id, Bucket.t()) :: Supabase.result(Response.t())
   def update(%Client{} = client, id, attrs) do
     uri = Endpoints.bucket_path_with_id(id)
-    attrs = Map.take(attrs, [:public, :file_size_limit, :allowed_mime_types])
+    attrs = Map.take(attrs, [:public, :file_size_limit, :allowed_mime_types, :type])
 
     client
     |> Storage.Request.base(uri)

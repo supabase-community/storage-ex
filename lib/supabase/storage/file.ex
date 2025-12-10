@@ -12,6 +12,7 @@ defmodule Supabase.Storage.File do
   alias Supabase.Storage
   alias Supabase.Storage.FileHandler
   alias Supabase.Storage.FileOptions
+  alias Supabase.Storage.ListV2Options
   alias Supabase.Storage.SearchOptions
   alias Supabase.Storage.TransformOptions
 
@@ -104,6 +105,34 @@ defmodule Supabase.Storage.File do
 
     with {:ok, %{body: body}} <-
            FileHandler.create_file(s.client, s.bucket_id, clean_path, file_path, opts) do
+      {:ok, %{path: clean_path, id: body["Id"], key: body["Key"]}}
+    end
+  end
+
+  @doc """
+  Update a file in the storage bucket.
+
+  ## Params
+
+  - `storage`: The `Supabase.Storage` instance created with `Supabase.Storage.from/2`.
+  - `file_path`: The **local** filesystem path, to upload from.
+  - `object_path`: The file path, including the file name. Should be of the format `folder/subfolder/filename.png`. The bucket must already exist before attempting to upload.
+  - `options`: Optional `Enumerable` that represents the `Supabase.Storage.FileOptions`.
+  """
+  @spec update(Storage.t(), file_path, object_path, options) :: Supabase.result(map)
+        when file_path: Path.t(),
+             object_path: Path.t(),
+             options: Enumerable.t()
+  def update(%Storage{} = s, file_path, object_path, opts \\ %{}) do
+    {:ok, opts} = FileOptions.parse(opts)
+
+    clean_path =
+      object_path
+      |> String.replace(~r/^\/|\/$/, "")
+      |> String.replace(~r/\/+/, "/")
+
+    with {:ok, %{body: body}} <-
+           FileHandler.update_file(s.client, s.bucket_id, clean_path, file_path, opts) do
       {:ok, %{path: clean_path, id: body["Id"], key: body["Key"]}}
     end
   end
@@ -265,6 +294,63 @@ defmodule Supabase.Storage.File do
   end
 
   @doc """
+    Creates signed URLs for multiple files within a bucket.
+
+    ## Params
+
+    - `storage`: The `Supabase.Storage` instance created with `Supabase.Storage.from/2`.
+    - `paths`: A list of file paths to create signed URLs for.
+    - `opts`: A keyword list of options.
+
+    ## Options
+
+    - `:download`: A boolean or string indicating whether to download the file.
+    - `:transform`: An enumerable of transformations to apply to the file.
+    - `:expires_in`: An integer indicating the expiration time in seconds.
+
+    ## Returns
+
+    A `Supabase.result` containing a list of signed URLs.
+  """
+  @spec create_signed_urls(Storage.t(), list(object_path), options) ::
+          Supabase.result(list(result))
+        when object_path: Path.t(),
+             result: %{path: String.t(), signed_url: String.t(), error: term | nil},
+             options:
+               list(
+                 {:download, boolean | String.t() | nil}
+                 | {:transform, Enumerable.t() | nil}
+                 | {:expires_in, integer}
+               )
+  def create_signed_urls(%Storage{} = s, paths, opts \\ []) when is_list(paths) do
+    _ = Keyword.fetch!(opts, :expires_in)
+    download = Keyword.get(opts, :download)
+
+    clean_paths =
+      Enum.map(paths, &(String.replace(&1, ~r/^\/|\/$/, "") |> String.replace(~r/\/+/, "/")))
+
+    with {:ok, resp} <- FileHandler.create_signed_urls(s.client, s.bucket_id, clean_paths, opts) do
+      items =
+        Enum.map(resp.body, &%{path: &1["path"], signed_url: &1["signedURL"], error: &1["error"]})
+
+      {:ok,
+       for item <- items do
+         uri = URI.parse(Path.join(s.client.storage_url, item.signed_url))
+
+         if is_nil(download) do
+           %{item | signed_url: to_string(uri)}
+         else
+           query =
+             URI.encode_query(%{"download" => if(download === true, do: "", else: download)})
+
+           uri = URI.append_query(uri, query)
+           %{item | signed_url: to_string(uri)}
+         end
+       end}
+    end
+  end
+
+  @doc """
   Lists all the files within a bucket.
 
   ## Params
@@ -280,6 +366,88 @@ defmodule Supabase.Storage.File do
 
     with {:ok, resp} <- FileHandler.list(s.client, s.bucket_id, prefix, opts) do
       {:ok, resp.body}
+    end
+  end
+
+  @doc """
+  Lists files using cursor-based pagination (v2 API - Experimental).
+
+  This method uses cursor-based pagination which is more efficient than offset-based
+  pagination for large datasets. Cursor pagination has O(1) complexity regardless of
+  the position in the dataset, while offset pagination becomes slower as the offset increases.
+
+  ## Performance Comparison
+
+  - Offset-based: `OFFSET 100000 LIMIT 100` - Very slow (must skip 100,000 records)
+  - Cursor-based: Always fast regardless of position
+
+  ## Params
+
+  - `storage`: The `Supabase.Storage` instance created with `Supabase.Storage.from/2`.
+  - `prefix`: The folder path.
+  - `options`: An `Enumerable` with the following keys:
+    - `limit`: Number of results per page (default: 100)
+    - `cursor`: Pagination cursor from previous response
+    - `with_delimiter`: Enable folder hierarchy grouping (default: false)
+
+  ## Returns
+
+  A map with:
+  - `has_next`: Boolean indicating if there are more pages
+  - `cursor`: Cursor to use for the next page (if `has_next` is true)
+  - `folders`: List of folder names (when `with_delimiter` is true)
+  - `objects`: List of file objects
+
+  ## Examples
+
+      # First page
+      {:ok, %{has_next: true, cursor: cursor, objects: files}} =
+        Supabase.Storage.File.list_v2(storage, "public/", %{limit: 100})
+
+      # Next page using cursor
+      {:ok, %{has_next: false, objects: more_files}} =
+        Supabase.Storage.File.list_v2(storage, "public/", %{limit: 100, cursor: cursor})
+
+      # With folder hierarchy
+      {:ok, %{folders: folders, objects: files}} =
+        Supabase.Storage.File.list_v2(storage, "public/", %{with_delimiter: true})
+
+  """
+  @spec list_v2(Storage.t(), Path.t() | nil, options :: Enumerable.t()) ::
+          Supabase.result(%{
+            has_next: boolean(),
+            cursor: String.t() | nil,
+            folders: list(String.t()),
+            objects: list(t)
+          })
+  def list_v2(%Storage{} = s, prefix \\ nil, opts \\ %{}) do
+    {:ok, opts} = ListV2Options.parse(opts)
+
+    with {:ok, resp} <- FileHandler.list_v2(s.client, s.bucket_id, prefix, opts) do
+      body = resp.body
+
+      # Parse the objects if they exist
+      objects =
+        case body["objects"] do
+          nil -> []
+          objs when is_list(objs) -> Enum.map(objs, &parse_object/1)
+        end
+
+      result = %{
+        has_next: body["hasNext"] || false,
+        cursor: body["cursor"],
+        folders: body["folders"] || [],
+        objects: objects
+      }
+
+      {:ok, result}
+    end
+  end
+
+  defp parse_object(obj) when is_map(obj) do
+    case __MODULE__.parse(obj) do
+      {:ok, file} -> file
+      {:error, _} -> obj
     end
   end
 
@@ -370,7 +538,7 @@ defmodule Supabase.Storage.File do
 
   @doc """
   Retrieves the details of an existing file.
-    
+
   ## Params
 
   - `storage`: The `Supabase.Storage` instance created with `Supabase.Storage.from/2`.

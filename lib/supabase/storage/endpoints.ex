@@ -33,6 +33,10 @@ defmodule Supabase.Storage.Endpoints do
     "/object/upload/sign/#{bucket}/#{path}"
   end
 
+  def file_update(bucket, object_path) do
+    "/object/#{bucket}/#{object_path}"
+  end
+
   def file_info(bucket, wildcard) do
     "/object/info/authenticated/#{bucket}/#{wildcard}"
   end
@@ -41,12 +45,20 @@ defmodule Supabase.Storage.Endpoints do
     "/object/list/#{bucket}"
   end
 
+  def file_list_v2(bucket) do
+    "/object/list-v2/#{bucket}"
+  end
+
   def file_remove(bucket) do
     "/object/#{bucket}"
   end
 
   def file_signed_url(bucket, path) do
     "/object/sign/#{bucket}/#{path}"
+  end
+
+  def file_signed_url(bucket) do
+    "/object/sign/#{bucket}"
   end
 
   def file_upload_signed_url(bucket, path) do
