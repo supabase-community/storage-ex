@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/supabase-community/storage-ex/compare/v0.5.0...v0.5.1) (2026-01-09)
+
+
+### Bug Fixes
+
+* omit download param from signed URLs when download is false ([#28](https://github.com/supabase-community/storage-ex/issues/28)) ([2da4325](https://github.com/supabase-community/storage-ex/commit/2da43254d556ad230bd0ce969e01f35d7e81b33d))
+
 ## [0.5.0](https://github.com/supabase-community/storage-ex/compare/v0.4.3...v0.5.0) (2025-12-10)
 
 
