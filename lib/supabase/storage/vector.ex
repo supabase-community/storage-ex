@@ -34,6 +34,7 @@ defmodule Supabase.Storage.Vector do
   alias Supabase.Fetcher.Request
   alias Supabase.Storage
   alias Supabase.Storage.BodyDecoder
+  alias Supabase.Storage.Vector.Index
   alias Supabase.Storage.Vector.Metadata
 
   @behaviour Supabase.Storage.Vector.Behaviour
@@ -41,9 +42,13 @@ defmodule Supabase.Storage.Vector do
   @typedoc """
   Vector client instance containing the Supabase client and optional bucket name.
   """
-  @type t :: %__MODULE__{client: Client.t(), vector_bucket_name: String.t() | nil}
+  @type t :: %__MODULE__{
+          client: Client.t(),
+          vector_bucket_name: String.t() | nil,
+          vector_index_name: String.t() | nil
+        }
 
-  defstruct [:client, :vector_bucket_name]
+  defstruct [:client, :vector_bucket_name, :vector_index_name]
 
   @doc """
   Creates a new Vector client instance.
@@ -52,6 +57,7 @@ defmodule Supabase.Storage.Vector do
 
     * `client` - A `Supabase.Client` instance
     * `vector_bucket_name` - Optional default bucket name to use for operations (default: `nil`)
+    * `vector_index_name` - Optional default index name to use for operations (default: `nil`)
 
   ## Returns
 
@@ -68,7 +74,42 @@ defmodule Supabase.Storage.Vector do
   """
   @impl true
   def from(%Client{} = client, vector_bucket_name \\ nil) do
-    %__MODULE__{client: client, vector_bucket_name: vector_bucket_name}
+    %__MODULE__{
+      client: client,
+      vector_bucket_name: vector_bucket_name
+    }
+  end
+
+  @doc """
+  Scopes the vector client to a specific index within the current bucket.
+
+  This convenience method creates a new client instance with both bucket and index
+  names set, allowing index-scoped operations like `put_vectors/2`, `query_vector/2`, etc.
+
+  ## Parameters
+
+    * `v` - A `Supabase.Storage.Vector` instance with `vector_bucket_name` set
+    * `index_name` - Name of the index to scope operations to (optional)
+
+  ## Returns
+
+  A `Supabase.Storage.Vector` struct with `vector_index_name` set.
+
+  ## Examples
+
+      iex> vector = Supabase.Storage.Vector.from(client, "embeddings")
+      iex> index = Supabase.Storage.Vector.index(vector, "documents")
+      %Supabase.Storage.Vector{
+        client: client,
+        vector_bucket_name: "embeddings",
+        vector_index_name: "documents"
+      }
+
+      # Now you can perform vector operations
+      iex> Supabase.Storage.Vector.Index.put_vectors(index, %{vectors: [...]})
+  """
+  def index(%__MODULE__{} = v, index_name \\ nil) do
+    %{v | vector_index_name: index_name}
   end
 
   @doc """
@@ -183,7 +224,6 @@ defmodule Supabase.Storage.Vector do
     |> Storage.Request.base("/ListVectorBuckets")
     |> Request.with_method(:post)
     |> Request.with_body(options)
-    |> Request.with_body_decoder(BodyDecoder, schema: Metadata)
     |> Fetcher.request()
   end
 
@@ -218,6 +258,183 @@ defmodule Supabase.Storage.Vector do
     |> Storage.Request.base("/DeleteVectorBucket")
     |> Request.with_method(:post)
     |> Request.with_body(%{vector_bucket_name: vector_bucket_name})
+    |> Fetcher.request()
+    |> then(fn
+      {:ok, _} -> {:ok, :deleted}
+      err -> err
+    end)
+  end
+
+  @doc """
+  Creates a new vector index within the current bucket.
+
+  Vector indexes define the structure for storing and querying vectors, including
+  the dimension, distance metric, and optional metadata configuration.
+
+  ## Parameters
+
+    * `v` - A `Supabase.Storage.Vector` instance with `vector_bucket_name` set
+    * `params` - Map with index configuration:
+      * `:index_name` - Unique name for the index (required)
+      * `:data_type` - Data type of vectors, currently only `:float32` (required)
+      * `:dimension` - Dimensionality of vectors, e.g., 384, 768, 1536 (required)
+      * `:distance_metric` - Similarity metric: `:cosine`, `:euclidean`, or `:dotproduct` (required)
+      * `:metadata_configuration` - Optional metadata settings (optional)
+        * `:non_filterable_metadata_keys` - List of metadata keys that cannot be used in filters
+
+  ## Returns
+
+    * `{:ok, :created}` - Index was successfully created
+    * `{:error, reason}` - Creation failed
+
+  ## Examples
+
+      iex> vector = Supabase.Storage.Vector.from(client, "embeddings")
+      iex> Supabase.Storage.Vector.create_index(vector, %{
+      ...>   index_name: "documents-openai",
+      ...>   data_type: :float32,
+      ...>   dimension: 1536,
+      ...>   distance_metric: :cosine,
+      ...>   metadata_configuration: %{
+      ...>     non_filterable_metadata_keys: ["raw_text"]
+      ...>   }
+      ...> })
+      {:ok, :created}
+  """
+  @impl true
+  def create_index(%__MODULE__{} = v, params \\ %{}) when not is_nil(v.vector_bucket_name) do
+    params =
+      params
+      |> Map.new()
+      |> Map.put_new(:vector_bucket_name, v.vector_bucket_name)
+
+    changeset = Index.create_changeset(%Index{}, params)
+
+    with {:ok, body} <- Ecto.Changeset.apply_action(changeset, :create) do
+      v.client
+      |> Storage.Request.base("/CreateIndex")
+      |> Request.with_method(:post)
+      |> Request.with_body(body)
+      |> Fetcher.request()
+      |> then(fn
+        {:ok, _} -> {:ok, :created}
+        err -> err
+      end)
+    end
+  end
+
+  @doc """
+  Retrieves metadata for a specific vector index.
+
+  Returns detailed configuration about a vector index including its dimension,
+  distance metric, and metadata configuration.
+
+  ## Parameters
+
+    * `v` - A `Supabase.Storage.Vector` instance with `vector_bucket_name` set
+    * `index_name` - Name of the index to retrieve
+
+  ## Returns
+
+    * `{:ok, response}` - Successfully retrieved index metadata
+    * `{:error, reason}` - Index not found or retrieval failed
+
+  ## Examples
+
+      iex> vector = Supabase.Storage.Vector.from(client, "embeddings")
+      iex> Supabase.Storage.Vector.get_index(vector, "documents-openai")
+      {:ok, %Response{body: %{
+        "index" => %{
+          "indexName" => "documents-openai",
+          "dimension" => 1536,
+          "distanceMetric" => "cosine",
+          "dataType" => "float32"
+        }
+      }}}
+  """
+  @impl true
+  def get_index(%__MODULE__{} = v, index_name)
+      when not is_nil(v.vector_bucket_name) and is_binary(index_name) do
+    v.client
+    |> Storage.Request.base("/GetIndex")
+    |> Request.with_method(:post)
+    |> Request.with_body(%{vector_bucket_name: v.vector_bucket_name, index_name: index_name})
+    |> Request.with_body_decoder(BodyDecoder, schema: Index)
+    |> Fetcher.request()
+  end
+
+  @doc """
+  Lists vector indexes within the current bucket with optional filtering and pagination.
+
+  ## Parameters
+
+    * `v` - A `Supabase.Storage.Vector` instance with `vector_bucket_name` set
+    * `options` - Optional map with the following keys:
+      * `:prefix` - Filter indexes by name prefix (optional)
+      * `:max_results` - Maximum number of results to return (default: 100, optional)
+      * `:next_token` - Token for pagination from previous response (optional)
+
+  ## Returns
+
+    * `{:ok, response}` - Successfully retrieved index list with optional pagination token
+    * `{:error, reason}` - List operation failed
+
+  ## Examples
+
+      iex> vector = Supabase.Storage.Vector.from(client, "embeddings")
+      iex> Supabase.Storage.Vector.list_indexes(vector)
+      {:ok, %Response{body: %{
+        "indexes" => [%{"indexName" => "documents-openai"}],
+        "nextToken" => nil
+      }}}
+
+      # Filter by prefix
+      iex> Supabase.Storage.Vector.list_indexes(vector, %{prefix: "documents-"})
+      {:ok, %Response{body: %{"indexes" => [...]}}}
+  """
+  @impl true
+  def list_indexes(%__MODULE__{} = v, options \\ %{max_results: 100})
+      when not is_nil(v.vector_bucket_name) do
+    options =
+      options
+      |> Map.new()
+      |> Map.put_new(:vector_bucket_name, v.vector_bucket_name)
+
+    v.client
+    |> Storage.Request.base("/ListIndexes")
+    |> Request.with_method(:post)
+    |> Request.with_body(options)
+    |> Fetcher.request()
+  end
+
+  @doc """
+  Deletes a vector index and all its data.
+
+  **Important:** This operation permanently deletes the index and all vectors stored in it.
+
+  ## Parameters
+
+    * `v` - A `Supabase.Storage.Vector` instance with `vector_bucket_name` set
+    * `index_name` - Name of the index to delete
+
+  ## Returns
+
+    * `{:ok, :deleted}` - Index was successfully deleted
+    * `{:error, reason}` - Deletion failed
+
+  ## Examples
+
+      iex> vector = Supabase.Storage.Vector.from(client, "embeddings")
+      iex> Supabase.Storage.Vector.delete_index(vector, "old-index")
+      {:ok, :deleted}
+  """
+  @impl true
+  def delete_index(%__MODULE__{} = v, index_name)
+      when not is_nil(v.vector_bucket_name) and is_binary(index_name) do
+    v.client
+    |> Storage.Request.base("/DeleteIndex")
+    |> Request.with_method(:post)
+    |> Request.with_body(%{vector_bucket_name: v.vector_bucket_name, index_name: index_name})
     |> Fetcher.request()
     |> then(fn
       {:ok, _} -> {:ok, :deleted}

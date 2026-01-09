@@ -242,4 +242,188 @@ defmodule Supabase.Storage.VectorTest do
       assert err.message == "Vector bucket not found"
     end
   end
+
+  describe "index/2" do
+    test "it should scope vector client to an index", %{client: client} do
+      vector = Vector.from(client, "embeddings")
+      index = Vector.index(vector, "documents")
+
+      assert %Vector{
+               client: ^client,
+               vector_bucket_name: "embeddings",
+               vector_index_name: "documents"
+             } = index
+    end
+  end
+
+  describe "create_index/2" do
+    test "it should create an index successfully", %{client: client} do
+      @mock
+      |> expect(:request, fn %Request{url: url, body: _body}, _opts ->
+        assert String.ends_with?(url.path, "/CreateIndex")
+
+        {:ok, %Finch.Response{status: 200, headers: [], body: ~s({})}}
+      end)
+
+      vector = Vector.from(client, "embeddings")
+
+      assert {:ok, :created} =
+               Vector.create_index(vector, %{
+                 index_name: "documents-openai",
+                 data_type: :float32,
+                 dimension: 1536,
+                 distance_metric: :cosine
+               })
+    end
+
+    test "it should validate required fields", %{client: client} do
+      vector = Vector.from(client, "embeddings")
+
+      assert {:error, %Ecto.Changeset{}} =
+               Vector.create_index(vector, %{
+                 index_name: "documents-openai"
+               })
+    end
+  end
+
+  describe "get_index/2" do
+    test "it should return index metadata when index exists", %{client: client} do
+      @mock
+      |> expect(:request, fn %Request{url: url, body: _body}, _opts ->
+        assert String.ends_with?(url.path, "/GetIndex")
+
+        response_body = """
+        {
+          "index": {
+            "indexName": "documents-openai",
+            "vectorBucketName": "embeddings",
+            "dataType": "float32",
+            "dimension": 1536,
+            "distanceMetric": "cosine",
+            "creationTime": 1704067200
+          }
+        }
+        """
+
+        {:ok, %Finch.Response{status: 200, headers: [], body: response_body}}
+      end)
+
+      vector = Vector.from(client, "embeddings")
+
+      assert {:ok, %Response{body: %{"index" => index}}} =
+               Vector.get_index(vector, "documents-openai")
+
+      assert index["indexName"] == "documents-openai"
+      assert index["dimension"] == 1536
+    end
+
+    test "it should return an error when index doesn't exist", %{client: client} do
+      @mock
+      |> expect(:request, fn %Request{}, _opts ->
+        body = ~s({"code": "Not Found", "message": "Index not found", "statusCode": 404})
+
+        {:ok, %Finch.Response{status: 404, headers: [], body: body}}
+      end)
+
+      vector = Vector.from(client, "embeddings")
+      assert {:error, %Supabase.Error{} = err} = Vector.get_index(vector, "nonexistent")
+      assert err.code == :not_found
+      assert err.message == "Index not found"
+    end
+  end
+
+  describe "list_indexes/2" do
+    test "it should list indexes with empty result", %{client: client} do
+      @mock
+      |> expect(:request, fn %Request{url: url}, _opts ->
+        assert String.ends_with?(url.path, "/ListIndexes")
+
+        response_body = """
+        {
+          "indexes": []
+        }
+        """
+
+        {:ok, %Finch.Response{status: 200, headers: [], body: response_body}}
+      end)
+
+      vector = Vector.from(client, "embeddings")
+      assert {:ok, %Response{body: %{"indexes" => []}}} = Vector.list_indexes(vector)
+    end
+
+    test "it should list indexes with results", %{client: client} do
+      @mock
+      |> expect(:request, fn %Request{}, _opts ->
+        response_body = """
+        {
+          "indexes": [
+            {"indexName": "documents-openai"},
+            {"indexName": "documents-cohere"}
+          ],
+          "nextToken": "next-page-token"
+        }
+        """
+
+        {:ok, %Finch.Response{status: 200, headers: [], body: response_body}}
+      end)
+
+      vector = Vector.from(client, "embeddings")
+
+      assert {:ok, %Response{body: %{"indexes" => indexes, "nextToken" => token}}} =
+               Vector.list_indexes(vector)
+
+      assert length(indexes) == 2
+      assert token == "next-page-token"
+    end
+
+    test "it should list indexes with prefix filter", %{client: client} do
+      @mock
+      |> expect(:request, fn %Request{body: _body}, _opts ->
+        response_body = """
+        {
+          "indexes": [
+            {"indexName": "documents-openai"}
+          ]
+        }
+        """
+
+        {:ok, %Finch.Response{status: 200, headers: [], body: response_body}}
+      end)
+
+      vector = Vector.from(client, "embeddings")
+
+      assert {:ok, %Response{body: %{"indexes" => indexes}}} =
+               Vector.list_indexes(vector, %{prefix: "documents-"})
+
+      assert length(indexes) == 1
+    end
+  end
+
+  describe "delete_index/2" do
+    test "it should delete an index successfully", %{client: client} do
+      @mock
+      |> expect(:request, fn %Request{url: url, body: _body}, _opts ->
+        assert String.ends_with?(url.path, "/DeleteIndex")
+
+        {:ok, %Finch.Response{status: 200, headers: [], body: ~s({})}}
+      end)
+
+      vector = Vector.from(client, "embeddings")
+      assert {:ok, :deleted} = Vector.delete_index(vector, "old-index")
+    end
+
+    test "it should return an error if index doesn't exist", %{client: client} do
+      @mock
+      |> expect(:request, fn %Request{}, _opts ->
+        body = ~s({"code": "Not Found", "message": "Index not found", "statusCode": 404})
+
+        {:ok, %Finch.Response{status: 404, headers: [], body: body}}
+      end)
+
+      vector = Vector.from(client, "embeddings")
+      assert {:error, %Supabase.Error{} = err} = Vector.delete_index(vector, "nonexistent")
+      assert err.code == :not_found
+      assert err.message == "Index not found"
+    end
+  end
 end
