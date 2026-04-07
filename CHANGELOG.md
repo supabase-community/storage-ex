@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/supabase-community/storage-ex/compare/v0.5.1...v0.6.0) (2026-04-07)
+
+
+### Features
+
+* **alpha:** vector buckets api ([#29](https://github.com/supabase-community/storage-ex/issues/29)) ([9425a77](https://github.com/supabase-community/storage-ex/commit/9425a77f8284931083bc01f620871106da53d7d2))
+
 ## [0.5.1](https://github.com/supabase-community/storage-ex/compare/v0.5.0...v0.5.1) (2026-01-09)
 
 
