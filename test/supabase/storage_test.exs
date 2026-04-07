@@ -1,5 +1,5 @@
 defmodule Supabase.StorageTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Supabase.Fetcher.Request
   alias Supabase.Storage
