@@ -8,7 +8,7 @@ defmodule Supabase.Storage.MixProject do
     [
       app: :supabase_storage,
       version: @version,
-      elixir: "~> 1.15",
+      elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       package: package(),
@@ -28,7 +28,7 @@ defmodule Supabase.Storage.MixProject do
     if System.get_env("SUPABASE_LOCAL") == "1" do
       {:supabase_potion, path: "../supabase-ex"}
     else
-      {:supabase_potion, "~> 0.7"}
+      {:supabase_potion, "~> 1.0.0"}
     end
   end
 
