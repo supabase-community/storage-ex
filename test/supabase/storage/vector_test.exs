@@ -4,6 +4,7 @@ defmodule Supabase.Storage.VectorTest do
   alias Supabase.Fetcher.Request
   alias Supabase.Fetcher.Response
   alias Supabase.Storage.Vector
+  alias Supabase.Storage.Vector.Metadata
 
   import Mox
 
@@ -36,8 +37,13 @@ defmodule Supabase.Storage.VectorTest do
   describe "create_bucket/2" do
     test "it should create a vector bucket successfully", %{client: client} do
       @mock
-      |> expect(:request, fn %Request{url: url, body: _body}, _opts ->
-        assert String.ends_with?(url.path, "/CreateVectorBucket")
+      |> expect(:request, fn %Request{url: url, body: body}, _opts ->
+        assert String.ends_with?(url.path, "/vector/CreateVectorBucket")
+
+        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+
+        assert body["vectorBucketName"] == "embeddings"
+        refute Map.has_key?(body, "vector_bucket_name")
 
         {:ok, %Finch.Response{status: 200, headers: [], body: ~s({})}}
       end)
@@ -63,8 +69,13 @@ defmodule Supabase.Storage.VectorTest do
   describe "get_bucket/2" do
     test "it should return bucket metadata when bucket exists", %{client: client} do
       @mock
-      |> expect(:request, fn %Request{url: url, body: _body}, _opts ->
-        assert String.ends_with?(url.path, "/GetVectorBucket")
+      |> expect(:request, fn %Request{url: url, body: body}, _opts ->
+        assert String.ends_with?(url.path, "/vector/GetVectorBucket")
+
+        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+
+        assert body["vectorBucketName"] == "embeddings"
+        refute Map.has_key?(body, "vector_bucket_name")
 
         response_body = """
         {
@@ -111,7 +122,7 @@ defmodule Supabase.Storage.VectorTest do
     test "it should list vector buckets with empty result", %{client: client} do
       @mock
       |> expect(:request, fn %Request{url: url}, _opts ->
-        assert String.ends_with?(url.path, "/ListVectorBuckets")
+        assert String.ends_with?(url.path, "/vector/ListVectorBuckets")
 
         response_body = """
         {
@@ -176,7 +187,14 @@ defmodule Supabase.Storage.VectorTest do
 
     test "it should list vector buckets with pagination", %{client: client} do
       @mock
-      |> expect(:request, fn %Request{body: _body}, _opts ->
+      |> expect(:request, fn %Request{body: body}, _opts ->
+        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+
+        assert body["maxResults"] == 50
+        assert body["nextToken"] == "previous-token"
+        refute Map.has_key?(body, "max_results")
+        refute Map.has_key?(body, "next_token")
+
         response_body = """
         {
           "vectorBuckets": [
@@ -203,7 +221,7 @@ defmodule Supabase.Storage.VectorTest do
     test "it should delete a vector bucket successfully", %{client: client} do
       @mock
       |> expect(:request, fn %Request{url: url, body: _body}, _opts ->
-        assert String.ends_with?(url.path, "/DeleteVectorBucket")
+        assert String.ends_with?(url.path, "/vector/DeleteVectorBucket")
 
         {:ok, %Finch.Response{status: 200, headers: [], body: ~s({})}}
       end)
@@ -259,8 +277,18 @@ defmodule Supabase.Storage.VectorTest do
   describe "create_index/2" do
     test "it should create an index successfully", %{client: client} do
       @mock
-      |> expect(:request, fn %Request{url: url, body: _body}, _opts ->
-        assert String.ends_with?(url.path, "/CreateIndex")
+      |> expect(:request, fn %Request{url: url, body: body}, _opts ->
+        assert String.ends_with?(url.path, "/vector/CreateIndex")
+
+        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+
+        assert body["vectorBucketName"] == "embeddings"
+        assert body["indexName"] == "documents-openai"
+        assert body["dataType"] == "float32"
+        assert body["dimension"] == 1536
+        assert body["distanceMetric"] == "cosine"
+        refute Map.has_key?(body, "vector_bucket_name")
+        refute Map.has_key?(body, "index_name")
 
         {:ok, %Finch.Response{status: 200, headers: [], body: ~s({})}}
       end)
@@ -289,8 +317,14 @@ defmodule Supabase.Storage.VectorTest do
   describe "get_index/2" do
     test "it should return index metadata when index exists", %{client: client} do
       @mock
-      |> expect(:request, fn %Request{url: url, body: _body}, _opts ->
-        assert String.ends_with?(url.path, "/GetIndex")
+      |> expect(:request, fn %Request{url: url, body: body}, _opts ->
+        assert String.ends_with?(url.path, "/vector/GetIndex")
+
+        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+
+        assert body["vectorBucketName"] == "embeddings"
+        assert body["indexName"] == "documents-openai"
+        refute Map.has_key?(body, "vector_bucket_name")
 
         response_body = """
         {
@@ -336,7 +370,7 @@ defmodule Supabase.Storage.VectorTest do
     test "it should list indexes with empty result", %{client: client} do
       @mock
       |> expect(:request, fn %Request{url: url}, _opts ->
-        assert String.ends_with?(url.path, "/ListIndexes")
+        assert String.ends_with?(url.path, "/vector/ListIndexes")
 
         response_body = """
         {
@@ -403,7 +437,7 @@ defmodule Supabase.Storage.VectorTest do
     test "it should delete an index successfully", %{client: client} do
       @mock
       |> expect(:request, fn %Request{url: url, body: _body}, _opts ->
-        assert String.ends_with?(url.path, "/DeleteIndex")
+        assert String.ends_with?(url.path, "/vector/DeleteIndex")
 
         {:ok, %Finch.Response{status: 200, headers: [], body: ~s({})}}
       end)
@@ -424,6 +458,28 @@ defmodule Supabase.Storage.VectorTest do
       assert {:error, %Supabase.Error{} = err} = Vector.delete_index(vector, "nonexistent")
       assert err.code == :not_found
       assert err.message == "Index not found"
+    end
+  end
+
+  describe "Metadata.parse/1" do
+    test "it should parse a camelCase GetVectorBucket response into the struct" do
+      attrs = %{
+        "vectorBucketName" => "embeddings",
+        "creationTime" => 1_704_067_200,
+        "encryptionConfiguration" => %{
+          "kmsKeyArn" => "arn:aws:kms:us-east-1:123456789012:key/12345678",
+          "sseType" => "KMS"
+        }
+      }
+
+      assert {:ok, %Metadata{} = metadata} = Metadata.parse(attrs)
+      assert metadata.vector_bucket_name == "embeddings"
+      assert metadata.creation_time == 1_704_067_200
+
+      assert %Metadata.EncryptConfiguration{
+               kms_key_arn: "arn:aws:kms:us-east-1:123456789012:key/12345678",
+               sse_type: "KMS"
+             } = metadata.encryption_configuration
     end
   end
 end

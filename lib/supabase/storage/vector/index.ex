@@ -131,17 +131,17 @@ defmodule Supabase.Storage.Vector.Index do
   @impl true
   def put_vectors(%Vector{} = v, params \\ %{})
       when not (is_nil(v.vector_bucket_name) or is_nil(v.vector_index_name)) do
-    params =
-      params
-      |> Map.new()
-      |> Map.put_new(:vector_bucket_name, v.vector_bucket_name)
-      |> Map.put_new(:index_name, v.vector_index_name)
+    with {:ok, %{vectors: vectors}} <- validate_put_vectors(Map.new(params)) do
+      body = %{
+        vectorBucketName: v.vector_bucket_name,
+        indexName: v.vector_index_name,
+        vectors: vectors
+      }
 
-    with {:ok, params} <- validate_put_vectors(params) do
       v.client
-      |> Storage.Request.base("/PutVectors")
+      |> Storage.Request.base("/vector/PutVectors")
       |> Request.with_method(:post)
-      |> Request.with_body(params)
+      |> Request.with_body(body)
       |> Fetcher.request()
       |> then(fn
         {:ok, _} -> {:ok, :put}
@@ -180,16 +180,18 @@ defmodule Supabase.Storage.Vector.Index do
   @impl true
   def get_vectors(%Vector{} = v, opts \\ %{})
       when not (is_nil(v.vector_bucket_name) or is_nil(v.vector_index_name)) do
-    opts =
-      opts
-      |> Map.new()
-      |> Map.put_new(:vector_bucket_name, v.vector_bucket_name)
-      |> Map.put_new(:index_name, v.vector_index_name)
+    opts = Map.new(opts)
+
+    body =
+      %{vectorBucketName: v.vector_bucket_name, indexName: v.vector_index_name}
+      |> maybe_put(:keys, opts[:keys])
+      |> maybe_put(:returnData, opts[:return_data])
+      |> maybe_put(:returnMetadata, opts[:return_metadata])
 
     v.client
-    |> Storage.Request.base("/GetVectors")
+    |> Storage.Request.base("/vector/GetVectors")
     |> Request.with_method(:post)
-    |> Request.with_body(opts)
+    |> Request.with_body(body)
     |> Fetcher.request()
   end
 
@@ -226,17 +228,22 @@ defmodule Supabase.Storage.Vector.Index do
   """
   @impl true
   def list_vectors(%Vector{} = v, opts \\ %{}) do
-    opts =
-      opts
-      |> Map.new()
-      |> Map.put_new(:vector_bucket_name, v.vector_bucket_name)
-      |> Map.put_new(:index_name, v.vector_index_name)
+    opts = Map.new(opts)
 
     with {:ok, opts} <- validate_list_vectors(opts) do
+      body =
+        %{vectorBucketName: v.vector_bucket_name, indexName: v.vector_index_name}
+        |> maybe_put(:maxResults, opts[:max_results])
+        |> maybe_put(:nextToken, opts[:next_token])
+        |> maybe_put(:returnData, opts[:return_data])
+        |> maybe_put(:returnMetadata, opts[:return_metadata])
+        |> maybe_put(:segmentCount, opts[:segment_count])
+        |> maybe_put(:segmentIndex, opts[:segment_index])
+
       v.client
-      |> Storage.Request.base("/ListVectors")
+      |> Storage.Request.base("/vector/ListVectors")
       |> Request.with_method(:post)
-      |> Request.with_body(opts)
+      |> Request.with_body(body)
       |> Fetcher.request()
     end
   end
@@ -280,16 +287,20 @@ defmodule Supabase.Storage.Vector.Index do
   @impl true
   def query_vector(%Vector{} = v, query \\ %{})
       when not (is_nil(v.vector_bucket_name) or is_nil(v.vector_index_name)) do
-    query =
-      query
-      |> Map.new()
-      |> Map.put_new(:vector_bucket_name, v.vector_bucket_name)
-      |> Map.put_new(:index_name, v.vector_index_name)
+    query = Map.new(query)
+
+    body =
+      %{vectorBucketName: v.vector_bucket_name, indexName: v.vector_index_name}
+      |> maybe_put(:queryVector, query[:query_vector])
+      |> maybe_put(:topK, query[:topK])
+      |> maybe_put(:filter, query[:filter])
+      |> maybe_put(:returnDistance, query[:return_distance])
+      |> maybe_put(:returnMetadata, query[:return_metadata])
 
     v.client
-    |> Storage.Request.base("/QueryVectors")
+    |> Storage.Request.base("/vector/QueryVectors")
     |> Request.with_method(:post)
-    |> Request.with_body(query)
+    |> Request.with_body(body)
     |> Fetcher.request()
   end
 
@@ -318,11 +329,11 @@ defmodule Supabase.Storage.Vector.Index do
       when not (is_nil(v.vector_bucket_name) or is_nil(v.vector_index_name)) and is_list(keys) do
     with {:ok, _} <- validate_delete_vectors(keys) do
       v.client
-      |> Storage.Request.base("/DeleteVectors")
+      |> Storage.Request.base("/vector/DeleteVectors")
       |> Request.with_method(:post)
       |> Request.with_body(%{
-        vector_bucket_name: v.vector_bucket_name,
-        index_name: v.vector_index_name,
+        vectorBucketName: v.vector_bucket_name,
+        indexName: v.vector_index_name,
         keys: keys
       })
       |> Fetcher.request()
@@ -350,8 +361,39 @@ defmodule Supabase.Storage.Vector.Index do
 
   def parse(attrs) do
     %__MODULE__{}
-    |> changeset(attrs)
+    |> changeset(normalize_response(attrs))
     |> apply_action(:parse)
+  end
+
+  # The vectors API returns camelCase JSON keys; translate the known
+  # response keys to the snake_case fields before casting.
+  defp normalize_response(attrs) when is_map(attrs) do
+    attrs
+    |> rename_key("indexName", "index_name")
+    |> rename_key("vectorBucketName", "vector_bucket_name")
+    |> rename_key("dataType", "data_type")
+    |> rename_key("distanceMetric", "distance_metric")
+    |> rename_key("creationTime", "creation_time")
+    |> normalize_metadata_configuration()
+  end
+
+  defp normalize_metadata_configuration(attrs) do
+    case Map.pop(attrs, "metadataConfiguration") do
+      {nil, attrs} ->
+        attrs
+
+      {config, attrs} when is_map(config) ->
+        config = rename_key(config, "nonFilterableMetadataKeys", "non_filterable_metadata_keys")
+
+        Map.put(attrs, "metadata_configuration", config)
+    end
+  end
+
+  defp rename_key(map, from, to) do
+    case Map.pop(map, from) do
+      {nil, map} -> map
+      {value, map} -> Map.put(map, to, value)
+    end
   end
 
   def changeset(%__MODULE__{} = i, %{} = attrs) do
@@ -435,4 +477,7 @@ defmodule Supabase.Storage.Vector.Index do
       changeset
     end
   end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end

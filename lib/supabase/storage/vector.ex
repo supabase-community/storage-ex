@@ -140,9 +140,9 @@ defmodule Supabase.Storage.Vector do
   def create_bucket(%__MODULE__{} = v, vector_bucket_name)
       when is_binary(vector_bucket_name) do
     v.client
-    |> Storage.Request.base("/CreateVectorBucket")
+    |> Storage.Request.base("/vector/CreateVectorBucket")
     |> Request.with_method(:post)
-    |> Request.with_body(%{vector_bucket_name: vector_bucket_name})
+    |> Request.with_body(%{vectorBucketName: vector_bucket_name})
     |> Fetcher.request()
     |> then(fn
       {:ok, _} -> {:ok, :created}
@@ -179,9 +179,9 @@ defmodule Supabase.Storage.Vector do
   def get_bucket(%__MODULE__{} = v, vector_bucket_name)
       when is_binary(vector_bucket_name) do
     v.client
-    |> Storage.Request.base("/GetVectorBucket")
+    |> Storage.Request.base("/vector/GetVectorBucket")
     |> Request.with_method(:post)
-    |> Request.with_body(%{vector_bucket_name: vector_bucket_name})
+    |> Request.with_body(%{vectorBucketName: vector_bucket_name})
     |> Request.with_body_decoder(BodyDecoder, schema: Metadata)
     |> Fetcher.request()
   end
@@ -220,10 +220,18 @@ defmodule Supabase.Storage.Vector do
   """
   @impl true
   def list_buckets(%__MODULE__{} = v, options \\ %{max_results: 100}) do
+    options = Map.new(options)
+
+    body =
+      %{}
+      |> maybe_put(:prefix, options[:prefix])
+      |> maybe_put(:maxResults, options[:max_results])
+      |> maybe_put(:nextToken, options[:next_token])
+
     v.client
-    |> Storage.Request.base("/ListVectorBuckets")
+    |> Storage.Request.base("/vector/ListVectorBuckets")
     |> Request.with_method(:post)
-    |> Request.with_body(options)
+    |> Request.with_body(body)
     |> Fetcher.request()
   end
 
@@ -255,9 +263,9 @@ defmodule Supabase.Storage.Vector do
   def delete_bucket(%__MODULE__{} = v, vector_bucket_name)
       when is_binary(vector_bucket_name) do
     v.client
-    |> Storage.Request.base("/DeleteVectorBucket")
+    |> Storage.Request.base("/vector/DeleteVectorBucket")
     |> Request.with_method(:post)
-    |> Request.with_body(%{vector_bucket_name: vector_bucket_name})
+    |> Request.with_body(%{vectorBucketName: vector_bucket_name})
     |> Fetcher.request()
     |> then(fn
       {:ok, _} -> {:ok, :deleted}
@@ -310,9 +318,29 @@ defmodule Supabase.Storage.Vector do
 
     changeset = Index.create_changeset(%Index{}, params)
 
-    with {:ok, body} <- Ecto.Changeset.apply_action(changeset, :create) do
+    with {:ok, index} <- Ecto.Changeset.apply_action(changeset, :create) do
+      body = %{
+        vectorBucketName: index.vector_bucket_name,
+        indexName: index.index_name,
+        dataType: index.data_type,
+        dimension: index.dimension,
+        distanceMetric: index.distance_metric
+      }
+
+      body =
+        case index.metadata_configuration do
+          nil ->
+            body
+
+          config ->
+            metadata_configuration =
+              maybe_put(%{}, :nonFilterableMetadataKeys, config.non_filterable_metadata_keys)
+
+            Map.put(body, :metadataConfiguration, metadata_configuration)
+        end
+
       v.client
-      |> Storage.Request.base("/CreateIndex")
+      |> Storage.Request.base("/vector/CreateIndex")
       |> Request.with_method(:post)
       |> Request.with_body(body)
       |> Fetcher.request()
@@ -356,9 +384,9 @@ defmodule Supabase.Storage.Vector do
   def get_index(%__MODULE__{} = v, index_name)
       when not is_nil(v.vector_bucket_name) and is_binary(index_name) do
     v.client
-    |> Storage.Request.base("/GetIndex")
+    |> Storage.Request.base("/vector/GetIndex")
     |> Request.with_method(:post)
-    |> Request.with_body(%{vector_bucket_name: v.vector_bucket_name, index_name: index_name})
+    |> Request.with_body(%{vectorBucketName: v.vector_bucket_name, indexName: index_name})
     |> Request.with_body_decoder(BodyDecoder, schema: Index)
     |> Fetcher.request()
   end
@@ -395,15 +423,18 @@ defmodule Supabase.Storage.Vector do
   @impl true
   def list_indexes(%__MODULE__{} = v, options \\ %{max_results: 100})
       when not is_nil(v.vector_bucket_name) do
-    options =
-      options
-      |> Map.new()
-      |> Map.put_new(:vector_bucket_name, v.vector_bucket_name)
+    options = Map.new(options)
+
+    body =
+      %{vectorBucketName: v.vector_bucket_name}
+      |> maybe_put(:prefix, options[:prefix])
+      |> maybe_put(:maxResults, options[:max_results])
+      |> maybe_put(:nextToken, options[:next_token])
 
     v.client
-    |> Storage.Request.base("/ListIndexes")
+    |> Storage.Request.base("/vector/ListIndexes")
     |> Request.with_method(:post)
-    |> Request.with_body(options)
+    |> Request.with_body(body)
     |> Fetcher.request()
   end
 
@@ -432,13 +463,16 @@ defmodule Supabase.Storage.Vector do
   def delete_index(%__MODULE__{} = v, index_name)
       when not is_nil(v.vector_bucket_name) and is_binary(index_name) do
     v.client
-    |> Storage.Request.base("/DeleteIndex")
+    |> Storage.Request.base("/vector/DeleteIndex")
     |> Request.with_method(:post)
-    |> Request.with_body(%{vector_bucket_name: v.vector_bucket_name, index_name: index_name})
+    |> Request.with_body(%{vectorBucketName: v.vector_bucket_name, indexName: index_name})
     |> Fetcher.request()
     |> then(fn
       {:ok, _} -> {:ok, :deleted}
       err -> err
     end)
   end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
