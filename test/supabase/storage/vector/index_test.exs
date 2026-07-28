@@ -23,8 +23,23 @@ defmodule Supabase.Storage.Vector.IndexTest do
   describe "put_vectors/2" do
     test "it should insert vectors successfully", %{client: client} do
       @mock
-      |> expect(:request, fn %Request{url: url, body: _body}, _opts ->
-        assert String.ends_with?(url.path, "/PutVectors")
+      |> expect(:request, fn %Request{url: url, body: body}, _opts ->
+        assert String.ends_with?(url.path, "/vector/PutVectors")
+
+        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+
+        assert body["vectorBucketName"] == "embeddings"
+        assert body["indexName"] == "documents"
+        refute Map.has_key?(body, "vector_bucket_name")
+        refute Map.has_key?(body, "index_name")
+
+        assert [
+                 %{
+                   "key" => "doc-1",
+                   "data" => %{"float32" => [0.1, 0.2, 0.3]},
+                   "metadata" => %{"title" => "Intro"}
+                 }
+               ] = body["vectors"]
 
         {:ok, %Finch.Response{status: 200, headers: [], body: ~s({})}}
       end)
@@ -67,8 +82,17 @@ defmodule Supabase.Storage.Vector.IndexTest do
   describe "get_vectors/2" do
     test "it should retrieve vectors by keys", %{client: client} do
       @mock
-      |> expect(:request, fn %Request{url: url, body: _body}, _opts ->
-        assert String.ends_with?(url.path, "/GetVectors")
+      |> expect(:request, fn %Request{url: url, body: body}, _opts ->
+        assert String.ends_with?(url.path, "/vector/GetVectors")
+
+        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+
+        assert body["vectorBucketName"] == "embeddings"
+        assert body["indexName"] == "documents"
+        assert body["keys"] == ["doc-1"]
+        assert body["returnData"] == true
+        assert body["returnMetadata"] == true
+        refute Map.has_key?(body, "vector_bucket_name")
 
         response_body = """
         {
@@ -103,8 +127,15 @@ defmodule Supabase.Storage.Vector.IndexTest do
   describe "list_vectors/2" do
     test "it should list vectors with pagination", %{client: client} do
       @mock
-      |> expect(:request, fn %Request{url: url}, _opts ->
-        assert String.ends_with?(url.path, "/ListVectors")
+      |> expect(:request, fn %Request{url: url, body: body}, _opts ->
+        assert String.ends_with?(url.path, "/vector/ListVectors")
+
+        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+
+        assert body["vectorBucketName"] == "embeddings"
+        assert body["indexName"] == "documents"
+        assert body["maxResults"] == 100
+        refute Map.has_key?(body, "max_results")
 
         response_body = """
         {
@@ -158,8 +189,18 @@ defmodule Supabase.Storage.Vector.IndexTest do
   describe "query_vector/2" do
     test "it should query similar vectors", %{client: client} do
       @mock
-      |> expect(:request, fn %Request{url: url, body: _body}, _opts ->
-        assert String.ends_with?(url.path, "/QueryVectors")
+      |> expect(:request, fn %Request{url: url, body: body}, _opts ->
+        assert String.ends_with?(url.path, "/vector/QueryVectors")
+
+        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+
+        assert body["vectorBucketName"] == "embeddings"
+        assert body["indexName"] == "documents"
+        assert body["queryVector"] == %{"float32" => [0.1, 0.2, 0.3]}
+        assert body["topK"] == 5
+        assert body["returnDistance"] == true
+        assert body["returnMetadata"] == true
+        refute Map.has_key?(body, "query_vector")
 
         response_body = """
         {
@@ -197,8 +238,15 @@ defmodule Supabase.Storage.Vector.IndexTest do
   describe "delete_vectors/2" do
     test "it should delete vectors by keys", %{client: client} do
       @mock
-      |> expect(:request, fn %Request{url: url, body: _body}, _opts ->
-        assert String.ends_with?(url.path, "/DeleteVectors")
+      |> expect(:request, fn %Request{url: url, body: body}, _opts ->
+        assert String.ends_with?(url.path, "/vector/DeleteVectors")
+
+        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+
+        assert body["vectorBucketName"] == "embeddings"
+        assert body["indexName"] == "documents"
+        assert body["keys"] == ["doc-1", "doc-2"]
+        refute Map.has_key?(body, "vector_bucket_name")
 
         {:ok, %Finch.Response{status: 200, headers: [], body: ~s({})}}
       end)
@@ -226,6 +274,33 @@ defmodule Supabase.Storage.Vector.IndexTest do
       keys = Enum.map(1..501, fn i -> "doc-#{i}" end)
 
       assert {:error, %Ecto.Changeset{}} = Index.delete_vectors(index, keys)
+    end
+  end
+
+  describe "parse/1" do
+    test "it should parse a camelCase GetIndex response into the struct" do
+      attrs = %{
+        "indexName" => "documents-openai",
+        "vectorBucketName" => "embeddings",
+        "dataType" => "float32",
+        "dimension" => 1536,
+        "distanceMetric" => "cosine",
+        "creationTime" => 1_704_067_200,
+        "metadataConfiguration" => %{
+          "nonFilterableMetadataKeys" => ["raw_text"]
+        }
+      }
+
+      assert {:ok, %Index{} = index} = Index.parse(attrs)
+      assert index.index_name == "documents-openai"
+      assert index.vector_bucket_name == "embeddings"
+      assert index.data_type == :float32
+      assert index.dimension == 1536
+      assert index.distance_metric == :cosine
+      assert index.creation_time == 1_704_067_200
+
+      assert %Index.MetadataConfiguration{non_filterable_metadata_keys: ["raw_text"]} =
+               index.metadata_configuration
     end
   end
 end

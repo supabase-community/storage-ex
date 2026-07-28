@@ -58,8 +58,39 @@ defmodule Supabase.Storage.Vector.Metadata do
 
   def parse(attrs) do
     %__MODULE__{}
-    |> changeset(attrs)
+    |> changeset(normalize_response(attrs))
     |> apply_action(:parse)
+  end
+
+  # The vectors API returns camelCase JSON keys; translate the known
+  # response keys to the snake_case fields before casting.
+  defp normalize_response(attrs) when is_map(attrs) do
+    attrs
+    |> rename_key("vectorBucketName", "vector_bucket_name")
+    |> rename_key("creationTime", "creation_time")
+    |> normalize_encryption_configuration()
+  end
+
+  defp normalize_encryption_configuration(attrs) do
+    case Map.pop(attrs, "encryptionConfiguration") do
+      {nil, attrs} ->
+        attrs
+
+      {config, attrs} when is_map(config) ->
+        config =
+          config
+          |> rename_key("kmsKeyArn", "kms_key_arn")
+          |> rename_key("sseType", "sse_type")
+
+        Map.put(attrs, "encryption_configuration", config)
+    end
+  end
+
+  defp rename_key(map, from, to) do
+    case Map.pop(map, from) do
+      {nil, map} -> map
+      {value, map} -> Map.put(map, to, value)
+    end
   end
 
   @doc """
