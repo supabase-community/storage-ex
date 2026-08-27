@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.1](https://github.com/supabase-community/storage-ex/compare/v0.6.0...v0.6.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* improve test suite, cautght bunch of errors ([#38](https://github.com/supabase-community/storage-ex/issues/38)) ([d3de7b9](https://github.com/supabase-community/storage-ex/commit/d3de7b942b37b04cfca190be5ecd81fb7258a58e))
+* vector buckets api wire format ([#33](https://github.com/supabase-community/storage-ex/issues/33)) ([d10e840](https://github.com/supabase-community/storage-ex/commit/d10e84076565d191daa656df93287ed0370c57de))
+
+
+### Miscellaneous Chores
+
+* bump upstream lib version ([360f8b9](https://github.com/supabase-community/storage-ex/commit/360f8b95aefd421731dc4f9ca6038b3e5fe7abe1))
+
 ## [0.6.0](https://github.com/supabase-community/storage-ex/compare/v0.5.1...v0.6.0) (2026-04-07)
 
 
