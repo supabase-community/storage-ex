@@ -125,4 +125,73 @@ defmodule Supabase.StorageTest do
       assert {:ok, %Bucket{id: "some"}} = Storage.get_bucket(client, "some")
     end
   end
+
+  describe "update_bucket/3" do
+    test "it should update a bucket with a PUT request", %{client: client} do
+      @mock
+      |> expect(:request, fn %Request{url: url} = req, _opts ->
+        assert req.method == :put
+        assert url.path =~ "/bucket/some"
+
+        {:ok,
+         %Finch.Response{status: 200, headers: [], body: ~s({"message": "Successfully updated"})}}
+      end)
+
+      assert {:ok, :updated} = Storage.update_bucket(client, "some", %{public: true})
+    end
+
+    test "it should return a changeset error for invalid attrs", %{client: client} do
+      assert {:error, %Ecto.Changeset{}} = Storage.update_bucket(client, "some", %{public: "yes"})
+    end
+  end
+
+  describe "empty_bucket/2" do
+    test "it should empty a bucket with a POST to /empty", %{client: client} do
+      @mock
+      |> expect(:request, fn %Request{url: url} = req, _opts ->
+        assert req.method == :post
+        assert url.path =~ "/bucket/some/empty"
+
+        {:ok,
+         %Finch.Response{status: 200, headers: [], body: ~s({"message": "Successfully emptied"})}}
+      end)
+
+      assert {:ok, :emptied} = Storage.empty_bucket(client, "some")
+    end
+
+    test "it should return an error if bucket doesn't exist", %{client: client} do
+      @mock
+      |> expect(:request, fn %Request{}, _opts ->
+        body = ~s({"code": "Not Found", "message": "Bucket not found", "statusCode": 404})
+        {:ok, %Finch.Response{status: 404, headers: [], body: body}}
+      end)
+
+      assert {:error, %Supabase.Error{code: :not_found}} = Storage.empty_bucket(client, "some")
+    end
+  end
+
+  describe "delete_bucket/2" do
+    test "it should delete a bucket with a DELETE request", %{client: client} do
+      @mock
+      |> expect(:request, fn %Request{url: url} = req, _opts ->
+        assert req.method == :delete
+        assert url.path =~ "/bucket/some"
+
+        {:ok,
+         %Finch.Response{status: 200, headers: [], body: ~s({"message": "Successfully deleted"})}}
+      end)
+
+      assert {:ok, :deleted} = Storage.delete_bucket(client, "some")
+    end
+
+    test "it should return an error if bucket doesn't exist", %{client: client} do
+      @mock
+      |> expect(:request, fn %Request{}, _opts ->
+        body = ~s({"code": "Not Found", "message": "Bucket not found", "statusCode": 404})
+        {:ok, %Finch.Response{status: 404, headers: [], body: body}}
+      end)
+
+      assert {:error, %Supabase.Error{code: :not_found}} = Storage.delete_bucket(client, "some")
+    end
+  end
 end

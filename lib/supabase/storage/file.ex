@@ -55,7 +55,7 @@ defmodule Supabase.Storage.File do
     field(:updated_at, :naive_datetime)
     field(:last_accessed_at, :naive_datetime)
 
-    belongs_to(:bucket, Storage.Bucket)
+    belongs_to(:bucket, Storage.Bucket, type: :string)
   end
 
   @spec parse(map | list(map)) :: {:ok, t | list(t)} | {:error, Ecto.Changeset.t()}
@@ -501,6 +501,8 @@ defmodule Supabase.Storage.File do
       path
       |> String.replace(~r/^\/|\/$/, "")
       |> String.replace(~r/\/+/, "/")
+      |> String.split("/")
+      |> Enum.map_join("/", &URI.encode/1)
 
     render_path = if transform, do: "render/image", else: "object"
 
@@ -510,12 +512,14 @@ defmodule Supabase.Storage.File do
       |> URI.parse()
 
     transform_query = if is_nil(transform), do: "", else: to_string(transform)
+    uri = if transform_query == "", do: uri, else: URI.append_query(uri, transform_query)
 
     if is_nil(download) do
-      {:ok, to_string(URI.append_query(uri, transform_query))}
+      {:ok, to_string(uri)}
     else
       query = URI.encode_query(%{"download" => if(download === true, do: "", else: download)})
-      uri = URI.append_query(uri, query) |> URI.append_query(transform_query)
+      uri = URI.append_query(uri, query)
+      uri = if transform_query == "", do: uri, else: URI.append_query(uri, transform_query)
       {:ok, to_string(uri)}
     end
   end

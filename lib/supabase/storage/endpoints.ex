@@ -26,19 +26,19 @@ defmodule Supabase.Storage.Endpoints do
   end
 
   def file_upload(bucket, path) do
-    "/object/#{bucket}/#{path}"
+    "/object/#{bucket}/#{encode_path(path)}"
   end
 
   def file_upload_to_url(bucket, path) do
-    "/object/upload/sign/#{bucket}/#{path}"
+    "/object/upload/sign/#{bucket}/#{encode_path(path)}"
   end
 
   def file_update(bucket, object_path) do
-    "/object/#{bucket}/#{object_path}"
+    "/object/#{bucket}/#{encode_path(object_path)}"
   end
 
   def file_info(bucket, wildcard) do
-    "/object/info/authenticated/#{bucket}/#{wildcard}"
+    "/object/info/authenticated/#{bucket}/#{encode_path(wildcard)}"
   end
 
   def file_list(bucket) do
@@ -54,7 +54,7 @@ defmodule Supabase.Storage.Endpoints do
   end
 
   def file_signed_url(bucket, path) do
-    "/object/sign/#{bucket}/#{path}"
+    "/object/sign/#{bucket}/#{encode_path(path)}"
   end
 
   def file_signed_url(bucket) do
@@ -62,10 +62,14 @@ defmodule Supabase.Storage.Endpoints do
   end
 
   def file_upload_signed_url(bucket, path) do
-    "/object/upload/sign/#{bucket}/#{path}"
+    "/object/upload/sign/#{bucket}/#{encode_path(path)}"
   end
 
   def file_download(bucket, wildcard) do
-    "/object/authenticated/#{bucket}/#{wildcard}"
+    "/object/authenticated/#{bucket}/#{encode_path(wildcard)}"
+  end
+
+  defp encode_path(path) do
+    path |> String.split("/") |> Enum.map_join("/", &URI.encode/1)
   end
 end
