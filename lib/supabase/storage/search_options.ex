@@ -36,7 +36,10 @@ defmodule Supabase.Storage.SearchOptions do
     field(:offset, :integer, default: 0)
     field(:search, :string)
 
-    embeds_one :sort_by, SortBy, primary_key: false, defaults_to_struct: true do
+    embeds_one :sort_by, SortBy,
+      primary_key: false,
+      defaults_to_struct: true,
+      on_replace: :update do
       @moduledoc false
       @derive Code.ensure_loaded!(Supabase) && Module.concat(Supabase.json_library(), Encoder)
       field(:column, :string, default: "name")
