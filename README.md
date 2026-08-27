@@ -12,7 +12,7 @@ We support the latest 3 stable Elixir versions.
 def deps do
   [
     {:supabase_potion, "~> 1.0"},
-    {:supabase_storage, "~> 0.6.0"} # x-release-please-version
+    {:supabase_storage, "~> 0.6.1"} # x-release-please-version
   ]
 end
 ```
