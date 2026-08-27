@@ -27,7 +27,7 @@ defmodule Supabase.Storage.SearchOptions do
           search: String.t()
         }
 
-  @fields ~w(limit offset sort_by search)a
+  @fields ~w(limit offset search)a
 
   @primary_key false
   @derive Code.ensure_loaded!(Supabase) && Module.concat(Supabase.json_library(), Encoder)
@@ -48,11 +48,11 @@ defmodule Supabase.Storage.SearchOptions do
   def parse(attrs) do
     %__MODULE__{}
     |> cast(attrs, @fields)
-    |> cast_embed(:search_by, with: &search_by_changeset/2, required: true)
+    |> cast_embed(:sort_by, with: &sort_by_changeset/2, required: true)
     |> apply_action(:parse)
   end
 
-  defp search_by_changeset(source, attrs) do
+  defp sort_by_changeset(source, attrs) do
     source
     |> cast(attrs, [:column, :order])
     |> validate_required([:column, :order])
