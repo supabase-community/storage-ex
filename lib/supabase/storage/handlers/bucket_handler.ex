@@ -76,7 +76,8 @@ defmodule Supabase.Storage.BucketHandler do
 
   @spec purge_cache(Client.t(), bucket_id, keyword) :: Supabase.result(Response.t())
   def purge_cache(%Client{} = client, id, opts) do
-    query = if Keyword.get(opts, :transformations, false), do: %{"transformations" => "true"}, else: %{}
+    query =
+      if Keyword.get(opts, :transformations, false), do: %{"transformations" => "true"}, else: %{}
 
     client
     |> Storage.Request.base(Endpoints.cdn_purge(id))

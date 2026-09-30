@@ -105,6 +105,19 @@ defmodule Supabase.Storage.FileTest do
       assert {:error, %Supabase.Error{}} = SFile.upload(storage, file_path, "x.png")
     end
 
+    test "forwards the receive_timeout option to the http client", %{
+      storage: storage,
+      file_path: file_path
+    } do
+      @mock
+      |> expect(:upload, fn %Request{}, _file, opts ->
+        assert opts[:receive_timeout] == 5_000
+        respond(200, ~s({"Id": "obj-id", "Key": "main/x.png"}))
+      end)
+
+      assert {:ok, _} = SFile.upload(storage, file_path, "x.png", %{receive_timeout: 5_000})
+    end
+
     test "URL encodes object paths containing spaces", %{
       storage: storage,
       file_path: file_path
@@ -480,6 +493,16 @@ defmodule Supabase.Storage.FileTest do
       end)
 
       assert {:ok, "file-content"} = SFile.download(storage, "a.png", cache_nonce: "abc123")
+    end
+
+    test "forwards the receive_timeout option to the http client", %{storage: storage} do
+      @mock
+      |> expect(:request, fn %Request{}, opts ->
+        assert opts[:receive_timeout] == 10_000
+        respond(200, "file-content")
+      end)
+
+      assert {:ok, "file-content"} = SFile.download(storage, "a.png", receive_timeout: 10_000)
     end
   end
 

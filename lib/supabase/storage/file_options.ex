@@ -17,16 +17,18 @@ defmodule Supabase.Storage.FileOptions do
   - `upsert`: When upsert is set to true, the file is overwritten if it exists. When set to false, an error is thrown if the object already exists. Defaults to false.
   - `metadata`: The metadata option is an object that allows you to store additional information about the file. This information can be used to filter and search for files. The metadata object can contain any key-value pairs you want to store.
   - `headers`: Optionally add extra headers to the request.
+  - `receive_timeout`: Optionally set a per-request timeout in milliseconds for the upload HTTP call.
   """
   @type t :: %__MODULE__{
           cache_control: String.t(),
           content_type: String.t(),
           upsert: boolean(),
           metadata: map,
-          headers: map
+          headers: map,
+          receive_timeout: pos_integer | nil
         }
 
-  @fields ~w(cache_control content_type upsert metadata headers)a
+  @fields ~w(cache_control content_type upsert metadata headers receive_timeout)a
 
   @primary_key false
   embedded_schema do
@@ -35,6 +37,7 @@ defmodule Supabase.Storage.FileOptions do
     field(:upsert, :boolean, default: false)
     field(:metadata, {:map, :string}, default: %{})
     field(:headers, {:map, :string}, default: %{})
+    field(:receive_timeout, :integer)
   end
 
   @spec parse(map) :: {:ok, t} | {:error, Ecto.Changeset.t()}

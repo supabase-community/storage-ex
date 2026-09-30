@@ -542,18 +542,20 @@ defmodule Supabase.Storage.File do
   - `path`: The full path and file name of the file to be downloaded. For example `folder/image.png`.
   - `options.transform`: Transform the asset before serving it to the client.
   - `options.cache_nonce`: Append a cache nonce parameter to the request URL to bust the cached object.
+  - `options.receive_timeout`: Per-request timeout in milliseconds for the download HTTP call.
   """
   @spec download(Storage.t(), path :: Path.t(), options) :: Supabase.result(binary)
         when options:
                list(
-                 {:transform, Enumerable.t() | nil} | {:cache_nonce, String.t() | nil}
+                 {:transform, Enumerable.t() | nil}
+                 | {:cache_nonce, String.t() | nil}
+                 | {:receive_timeout, pos_integer | nil}
                )
   def download(%Storage{} = s, path, opts \\ [])
       when is_binary(path) and is_list(opts) do
     transform = Keyword.get(opts, :transform)
-    cache_nonce = Keyword.get(opts, :cache_nonce)
 
-    with {:ok, resp} <- FileHandler.get(s.client, s.bucket_id, path, transform, cache_nonce) do
+    with {:ok, resp} <- FileHandler.get(s.client, s.bucket_id, path, transform, opts) do
       {:ok, resp.body}
     end
   end
@@ -565,22 +567,24 @@ defmodule Supabase.Storage.File do
   - `path`: The full path and file name of the file to be downloaded. For example `folder/image.png`.
   - `options.transform`: Transform the asset before serving it to the client.
   - `options.cache_nonce`: Append a cache nonce parameter to the request URL to bust the cached object.
+  - `options.receive_timeout`: Per-request timeout in milliseconds for the download HTTP call.
   """
   @spec download_lazy(Storage.t(), path :: Path.t(), on_response, options) ::
           Supabase.result(binary)
         when options:
                list(
-                 {:transform, Enumerable.t() | nil} | {:cache_nonce, String.t() | nil}
+                 {:transform, Enumerable.t() | nil}
+                 | {:cache_nonce, String.t() | nil}
+                 | {:receive_timeout, pos_integer | nil}
                ),
              on_response: ({Supabase.Fetcher.status(), Supabase.Fetcher.headers(), binary} ->
                              Supabase.result(Supabase.Fetcher.Response.t()))
   def download_lazy(%Storage{} = s, path, on_response, opts \\ [])
       when is_binary(path) and is_list(opts) do
     transform = Keyword.get(opts, :transform)
-    cache_nonce = Keyword.get(opts, :cache_nonce)
 
     with {:ok, resp} <-
-           FileHandler.get_lazy(s.client, s.bucket_id, path, transform, cache_nonce, on_response) do
+           FileHandler.get_lazy(s.client, s.bucket_id, path, transform, on_response, opts) do
       {:ok, resp.body}
     end
   end

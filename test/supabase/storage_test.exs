@@ -225,7 +225,9 @@ defmodule Supabase.StorageTest do
     test "it should return an error when the service rejects the purge", %{client: client} do
       @mock
       |> expect(:request, fn %Request{}, _opts ->
-        body = ~s({"code": "Forbidden", "message": "service_role key required", "statusCode": 403})
+        body =
+          ~s({"code": "Forbidden", "message": "service_role key required", "statusCode": 403})
+
         {:ok, %Finch.Response{status: 403, headers: [], body: body}}
       end)
 

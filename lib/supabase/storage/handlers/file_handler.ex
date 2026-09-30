@@ -40,7 +40,7 @@ defmodule Supabase.Storage.FileHandler do
       "x-metadata" => Base.encode64(metadata)
     })
     |> Request.with_headers(opts.headers)
-    |> Fetcher.upload(file_path)
+    |> Fetcher.upload(file_path, upload_http_opts(opts))
   end
 
   @spec update_file(Client.t(), bucket_id, object_path, file_path, opts) ::
@@ -58,7 +58,7 @@ defmodule Supabase.Storage.FileHandler do
       "x-metadata" => Base.encode64(Jason.encode!(opts.metadata))
     })
     |> Request.with_headers(opts.headers)
-    |> Fetcher.upload(file_path)
+    |> Fetcher.upload(file_path, upload_http_opts(opts))
   end
 
   @spec create_file_to_url(Client.t(), bucket_id, token, object_path, file_path, opts) ::
@@ -85,7 +85,7 @@ defmodule Supabase.Storage.FileHandler do
       "x-metadata" => Base.encode64(metadata)
     })
     |> Request.with_headers(opts.headers)
-    |> Fetcher.upload(file_path)
+    |> Fetcher.upload(file_path, upload_http_opts(opts))
   end
 
   @spec move(Client.t(), bucket_id, object_path, object_path, String.t() | nil) ::
@@ -236,45 +236,45 @@ defmodule Supabase.Storage.FileHandler do
     |> Fetcher.request()
   end
 
-  @spec get(Client.t(), bucket_id, object_path, map | nil, String.t() | nil) ::
+  @spec get(Client.t(), bucket_id, object_path, map | nil, keyword) ::
           Supabase.result(Response.t())
-  def get(%Client{} = client, bucket_id, wildcard, transform, cache_nonce \\ nil) do
-    uri = download_uri(bucket_id, wildcard, transform, cache_nonce)
+  def get(%Client{} = client, bucket_id, wildcard, transform, opts \\ []) do
+    uri = download_uri(bucket_id, wildcard, transform, Keyword.get(opts, :cache_nonce))
 
     client
     |> Storage.Request.base(uri)
     |> Request.with_method(:get)
     |> Request.with_headers(%{"accept" => MIME.from_path(wildcard)})
     |> Request.with_body_decoder(nil)
-    |> Fetcher.request()
+    |> Fetcher.request(http_opts(opts))
   end
 
-  @spec get_lazy(Client.t(), bucket_id, wildcard, term, String.t() | nil) ::
+  @spec get_lazy(Client.t(), bucket_id, wildcard, term, keyword) ::
           Supabase.result(Response.t())
-  def get_lazy(%Client{} = client, bucket_id, wildcard, transform, cache_nonce \\ nil) do
-    uri = download_uri(bucket_id, wildcard, transform, cache_nonce)
+  def get_lazy(%Client{} = client, bucket_id, wildcard, transform, opts \\ []) do
+    uri = download_uri(bucket_id, wildcard, transform, Keyword.get(opts, :cache_nonce))
 
     client
     |> Storage.Request.base(uri)
     |> Request.with_method(:get)
     |> Request.with_headers(%{"accept" => MIME.from_path(wildcard)})
     |> Request.with_body_decoder(nil)
-    |> Fetcher.stream()
+    |> Fetcher.stream(nil, http_opts(opts))
   end
 
-  @spec get_lazy(Client.t(), bucket_id, wildcard, term, String.t() | nil, on_response) ::
+  @spec get_lazy(Client.t(), bucket_id, wildcard, term, on_response, keyword) ::
           Supabase.result(Response.t())
         when on_response: ({Fetcher.status(), Fetcher.headers(), binary} ->
                              Supabase.result(Response.t()))
-  def get_lazy(%Client{} = client, bucket_id, wildcard, transform, cache_nonce, on_response) do
-    uri = download_uri(bucket_id, wildcard, transform, cache_nonce)
+  def get_lazy(%Client{} = client, bucket_id, wildcard, transform, on_response, opts) do
+    uri = download_uri(bucket_id, wildcard, transform, Keyword.get(opts, :cache_nonce))
 
     client
     |> Storage.Request.base(uri)
     |> Request.with_method(:get)
     |> Request.with_headers(%{"accept" => MIME.from_path(wildcard)})
     |> Request.with_body_decoder(nil)
-    |> Fetcher.stream(on_response)
+    |> Fetcher.stream(on_response, http_opts(opts))
   end
 
   defp download_uri(bucket_id, wildcard, transform, cache_nonce) do
@@ -290,7 +290,10 @@ defmodule Supabase.Storage.FileHandler do
       |> URI.parse()
       |> URI.append_query(transform_query)
 
-    uri = if cache_nonce, do: URI.append_query(uri, URI.encode_query(%{"cacheNonce" => cache_nonce})), else: uri
+    uri =
+      if cache_nonce,
+        do: URI.append_query(uri, URI.encode_query(%{"cacheNonce" => cache_nonce})),
+        else: uri
 
     to_string(uri)
   end
@@ -307,7 +310,8 @@ defmodule Supabase.Storage.FileHandler do
 
   @spec purge_cache(Client.t(), bucket_id, object_path, keyword) :: Supabase.result(Response.t())
   def purge_cache(%Client{} = client, bucket_id, path, opts) do
-    query = if Keyword.get(opts, :transformations, false), do: %{"transformations" => "true"}, else: %{}
+    query =
+      if Keyword.get(opts, :transformations, false), do: %{"transformations" => "true"}, else: %{}
 
     client
     |> Storage.Request.base(Endpoints.cdn_purge(bucket_id, path))
@@ -315,4 +319,14 @@ defmodule Supabase.Storage.FileHandler do
     |> Request.with_query(query)
     |> Fetcher.request()
   end
+
+  defp http_opts(opts) do
+    case Keyword.get(opts, :receive_timeout) do
+      nil -> []
+      timeout -> [receive_timeout: timeout]
+    end
+  end
+
+  defp upload_http_opts(%Opts{receive_timeout: nil}), do: []
+  defp upload_http_opts(%Opts{receive_timeout: timeout}), do: [receive_timeout: timeout]
 end
