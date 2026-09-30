@@ -231,4 +231,34 @@ defmodule Supabase.Storage do
       {:ok, :deleted}
     end
   end
+
+  @doc """
+  Purges the CDN cache for an entire bucket. Maps to `DELETE /cdn/{bucket}`.
+
+  ## Params
+
+  - `client`: The `Supabase.Client` to use to interact with the Storage service.
+  - `id`: The unique identifier of the bucket you would like to purge from cache.
+  - `options.transformations`: If true, purges only transformations (resized/formatted variants), leaving original cached files intact. Defaults to false.
+
+  ## Notes
+
+  Requires the `service_role` key. On self-hosted Supabase, the Storage service must
+  have `CDN_PURGE_ENDPOINT_URL` configured and the `purgeCache` tenant feature enabled.
+
+  ## Examples
+
+      iex> Supabase.Storage.purge_bucket_cache(client, "avatars")
+      {:ok, :purged}
+
+      iex> Supabase.Storage.purge_bucket_cache(client, "avatars", transformations: true)
+      {:ok, :purged}
+
+  """
+  @impl true
+  def purge_bucket_cache(%Client{} = client, id, opts \\ []) when is_binary(id) do
+    with {:ok, _} <- BucketHandler.purge_cache(client, id, opts) do
+      {:ok, :purged}
+    end
+  end
 end

@@ -194,4 +194,42 @@ defmodule Supabase.StorageTest do
       assert {:error, %Supabase.Error{code: :not_found}} = Storage.delete_bucket(client, "some")
     end
   end
+
+  describe "purge_bucket_cache/3" do
+    test "it should purge the bucket cache with a DELETE request", %{client: client} do
+      @mock
+      |> expect(:request, fn %Request{url: url} = req, _opts ->
+        assert req.method == :delete
+        assert url.path =~ "/cdn/avatars"
+        assert is_nil(url.query)
+
+        {:ok, %Finch.Response{status: 200, headers: [], body: ~s({"message": "success"})}}
+      end)
+
+      assert {:ok, :purged} = Storage.purge_bucket_cache(client, "avatars")
+    end
+
+    test "it should pass the transformations query param", %{client: client} do
+      @mock
+      |> expect(:request, fn %Request{url: url} = req, _opts ->
+        assert req.method == :delete
+        assert url.path =~ "/cdn/avatars"
+        assert Request.get_query_param(req, "transformations") == "true"
+
+        {:ok, %Finch.Response{status: 200, headers: [], body: ~s({"message": "success"})}}
+      end)
+
+      assert {:ok, :purged} = Storage.purge_bucket_cache(client, "avatars", transformations: true)
+    end
+
+    test "it should return an error when the service rejects the purge", %{client: client} do
+      @mock
+      |> expect(:request, fn %Request{}, _opts ->
+        body = ~s({"code": "Forbidden", "message": "service_role key required", "statusCode": 403})
+        {:ok, %Finch.Response{status: 403, headers: [], body: body}}
+      end)
+
+      assert {:error, %Supabase.Error{}} = Storage.purge_bucket_cache(client, "avatars")
+    end
+  end
 end

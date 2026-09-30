@@ -13,4 +13,5 @@ defmodule Supabase.Storage.Behaviour do
   @callback update_bucket(conn, bucket_id, map) :: Supabase.result(:updated)
   @callback empty_bucket(conn, bucket_id) :: Supabase.result(:emptied)
   @callback delete_bucket(conn, bucket_id) :: Supabase.result(:deleted)
+  @callback purge_bucket_cache(conn, bucket_id, keyword) :: Supabase.result(:purged)
 end

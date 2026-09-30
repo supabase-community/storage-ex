@@ -593,4 +593,40 @@ defmodule Supabase.Storage.File do
       {:ok, resp.body}
     end
   end
+
+  @doc """
+  Purges the CDN cache for a single file. Maps to `DELETE /cdn/{bucket}/{path}`.
+
+  ## Params
+
+  - `storage`: The `Supabase.Storage` instance created with `Supabase.Storage.from/2`.
+  - `path`: The full path and file name of the file to purge from cache. For example `folder/image.png`.
+  - `options.transformations`: If true, purges only transformations (resized/formatted variants), leaving the original cached file intact. Defaults to false.
+
+  ## Notes
+
+  Requires the `service_role` key. On self-hosted Supabase, the Storage service must
+  have `CDN_PURGE_ENDPOINT_URL` configured and the `purgeCache` tenant feature enabled.
+
+  ## Examples
+
+      iex> Supabase.Storage.File.purge_cache(storage, "folder/avatar1.png")
+      {:ok, :purged}
+
+      iex> Supabase.Storage.File.purge_cache(storage, "folder/avatar1.png", transformations: true)
+      {:ok, :purged}
+
+  """
+  @spec purge_cache(Storage.t(), path :: Path.t(), options) :: Supabase.result(:purged)
+        when options: list({:transformations, boolean})
+  def purge_cache(%Storage{} = s, path, opts \\ []) when is_binary(path) and is_list(opts) do
+    clean_path =
+      path
+      |> String.replace(~r/^\/|\/$/, "")
+      |> String.replace(~r/\/+/, "/")
+
+    with {:ok, _} <- FileHandler.purge_cache(s.client, s.bucket_id, clean_path, opts) do
+      {:ok, :purged}
+    end
+  end
 end

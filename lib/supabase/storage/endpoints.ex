@@ -69,6 +69,14 @@ defmodule Supabase.Storage.Endpoints do
     "/object/authenticated/#{bucket}/#{encode_path(wildcard)}"
   end
 
+  def cdn_purge(bucket) do
+    "/cdn/#{URI.encode(bucket)}"
+  end
+
+  def cdn_purge(bucket, path) do
+    "/cdn/#{URI.encode(bucket)}/#{encode_path(path)}"
+  end
+
   defp encode_path(path) do
     path |> String.split("/") |> Enum.map_join("/", &URI.encode/1)
   end

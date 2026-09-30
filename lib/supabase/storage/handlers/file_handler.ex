@@ -314,4 +314,15 @@ defmodule Supabase.Storage.FileHandler do
     |> Request.with_body_decoder(nil)
     |> Fetcher.request()
   end
+
+  @spec purge_cache(Client.t(), bucket_id, object_path, keyword) :: Supabase.result(Response.t())
+  def purge_cache(%Client{} = client, bucket_id, path, opts) do
+    query = if Keyword.get(opts, :transformations, false), do: %{"transformations" => "true"}, else: %{}
+
+    client
+    |> Storage.Request.base(Endpoints.cdn_purge(bucket_id, path))
+    |> Request.with_method(:delete)
+    |> Request.with_query(query)
+    |> Fetcher.request()
+  end
 end

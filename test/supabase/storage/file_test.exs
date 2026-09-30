@@ -456,4 +456,47 @@ defmodule Supabase.Storage.FileTest do
                end)
     end
   end
+
+  describe "purge_cache/3" do
+    test "purges a file from the CDN cache", %{storage: storage} do
+      @mock
+      |> expect(:request, fn %Request{url: url} = req, _opts ->
+        assert req.method == :delete
+        assert url.path =~ "/cdn/main/folder/avatar1.png"
+        assert is_nil(url.query)
+        respond(200, ~s({"message": "success"}))
+      end)
+
+      assert {:ok, :purged} = SFile.purge_cache(storage, "/folder//avatar1.png/")
+    end
+
+    test "passes the transformations query param", %{storage: storage} do
+      @mock
+      |> expect(:request, fn %Request{} = req, _opts ->
+        assert Request.get_query_param(req, "transformations") == "true"
+        respond(200, ~s({"message": "success"}))
+      end)
+
+      assert {:ok, :purged} = SFile.purge_cache(storage, "a.png", transformations: true)
+    end
+
+    test "URL encodes paths containing spaces", %{storage: storage} do
+      @mock
+      |> expect(:request, fn %Request{url: url}, _opts ->
+        assert url.path =~ "/cdn/main/imports/Pearl%20Jam.csv"
+        respond(200, ~s({"message": "success"}))
+      end)
+
+      assert {:ok, :purged} = SFile.purge_cache(storage, "imports/Pearl Jam.csv")
+    end
+
+    test "returns an error tuple on failure", %{storage: storage} do
+      @mock
+      |> expect(:request, fn %Request{}, _opts ->
+        respond(403, ~s({"statusCode": "403", "error": "Forbidden", "message": "nope"}))
+      end)
+
+      assert {:error, %Supabase.Error{}} = SFile.purge_cache(storage, "a.png")
+    end
+  end
 end
