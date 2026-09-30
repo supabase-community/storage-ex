@@ -16,7 +16,7 @@ defmodule Supabase.Storage.FileHandler do
 
   @type bucket_id :: String.t()
   @type object_path :: Path.t()
-  @type file_path :: Path.t()
+  @type upload_source :: Path.t() | iodata() | Enumerable.t()
   @type opts :: Opts.t()
   @type search_opts :: Search.t()
   @type list_v2_opts :: ListV2.t()
@@ -24,9 +24,9 @@ defmodule Supabase.Storage.FileHandler do
   @type prefix :: String.t() | nil
   @type token :: String.t()
 
-  @spec create_file(Client.t(), bucket_id, object_path, file_path, opts) ::
+  @spec create_file(Client.t(), bucket_id, object_path, upload_source, opts) ::
           Supabase.result(Response.t())
-  def create_file(%Client{} = client, bucket, object_path, file_path, %Opts{} = opts) do
+  def create_file(%Client{} = client, bucket, object_path, source, %Opts{} = opts) do
     uri = Endpoints.file_upload(bucket, object_path)
     metadata = Supabase.encode_json(opts.metadata)
 
@@ -40,12 +40,12 @@ defmodule Supabase.Storage.FileHandler do
       "x-metadata" => Base.encode64(metadata)
     })
     |> Request.with_headers(opts.headers)
-    |> Fetcher.upload(file_path, upload_http_opts(opts))
+    |> dispatch_upload(source, opts)
   end
 
-  @spec update_file(Client.t(), bucket_id, object_path, file_path, opts) ::
+  @spec update_file(Client.t(), bucket_id, object_path, upload_source, opts) ::
           Supabase.result(Response.t())
-  def update_file(%Client{} = client, bucket, object_path, file_path, %Opts{} = opts) do
+  def update_file(%Client{} = client, bucket, object_path, source, %Opts{} = opts) do
     uri = Endpoints.file_update(bucket, object_path)
 
     client
@@ -58,17 +58,17 @@ defmodule Supabase.Storage.FileHandler do
       "x-metadata" => Base.encode64(Jason.encode!(opts.metadata))
     })
     |> Request.with_headers(opts.headers)
-    |> Fetcher.upload(file_path, upload_http_opts(opts))
+    |> dispatch_upload(source, opts)
   end
 
-  @spec create_file_to_url(Client.t(), bucket_id, token, object_path, file_path, opts) ::
+  @spec create_file_to_url(Client.t(), bucket_id, token, object_path, upload_source, opts) ::
           Supabase.result(Response.t())
   def create_file_to_url(
         %Client{} = client,
         bucket,
         token,
         object_path,
-        file_path,
+        source,
         %Opts{} = opts
       ) do
     uri = Endpoints.file_upload_to_url(bucket, object_path)
@@ -85,7 +85,28 @@ defmodule Supabase.Storage.FileHandler do
       "x-metadata" => Base.encode64(metadata)
     })
     |> Request.with_headers(opts.headers)
-    |> Fetcher.upload(file_path, upload_http_opts(opts))
+    |> dispatch_upload(source, opts)
+  end
+
+  # Binaries are always treated as local filesystem paths. To upload raw
+  # in-memory content, pass it as iodata (a list) or as a stream.
+  defp dispatch_upload(req, source, %Opts{} = opts) when is_binary(source) do
+    Fetcher.upload(req, source, upload_http_opts(opts))
+  end
+
+  defp dispatch_upload(req, source, %Opts{} = opts) when is_list(source) do
+    content_length = source |> IO.iodata_length() |> to_string()
+
+    req
+    |> Request.with_body(source)
+    |> Request.with_headers(%{"content-length" => content_length})
+    |> Fetcher.request(upload_http_opts(opts))
+  end
+
+  defp dispatch_upload(req, %{__struct__: _} = stream, %Opts{} = opts) do
+    req
+    |> Request.with_body({:stream, stream})
+    |> Fetcher.request(upload_http_opts(opts))
   end
 
   @spec move(Client.t(), bucket_id, object_path, object_path, String.t() | nil) ::

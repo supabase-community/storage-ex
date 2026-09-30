@@ -131,6 +131,40 @@ defmodule Supabase.Storage.FileTest do
       assert {:ok, %{path: "imports/Pearl Jam.csv"}} =
                SFile.upload(storage, file_path, "imports/Pearl Jam.csv")
     end
+
+    test "uploads in-memory iodata content with a content-length header", %{storage: storage} do
+      @mock
+      |> expect(:request, fn %Request{url: url} = req, _opts ->
+        assert req.method == :post
+        assert url.path =~ "/object/main/gen/report.csv"
+        assert IO.iodata_to_binary(req.body) == "a,b,c"
+        assert Request.get_header(req, "content-length") == "5"
+        respond(200, ~s({"Id": "obj-id", "Key": "main/gen/report.csv"}))
+      end)
+
+      assert {:ok, %{path: "gen/report.csv"}} =
+               SFile.upload(storage, ["a", ",", "b,c"], "gen/report.csv", %{
+                 content_type: "text/csv"
+               })
+    end
+
+    test "uploads a File.Stream as a streamed body", %{storage: storage} do
+      path = Path.join(System.tmp_dir!(), "storage-ex-stream-upload-test.txt")
+      Elixir.File.write!(path, "stream-me")
+      on_exit(fn -> Elixir.File.rm(path) end)
+
+      @mock
+      |> expect(:request, fn %Request{url: url} = req, _opts ->
+        assert req.method == :post
+        assert url.path =~ "/object/main/logs/big.log"
+        assert {:stream, %File.Stream{}} = req.body
+        respond(200, ~s({"Id": "obj-id", "Key": "main/logs/big.log"}))
+      end)
+
+      stream = File.stream!(path, [], 2048)
+
+      assert {:ok, %{path: "logs/big.log"}} = SFile.upload(storage, stream, "logs/big.log")
+    end
   end
 
   describe "update/4" do

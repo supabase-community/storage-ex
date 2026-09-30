@@ -86,16 +86,19 @@ defmodule Supabase.Storage.File do
   ## Params
 
   - `storage`: The `Supabase.Storage` instance created with `Supabase.Storage.from/2`.
-  - `file_path`: The **local** filesystem path, to upload from.
+  - `source`: The content to upload. One of:
+    - a **local** filesystem path (binary), streamed from disk.
+    - in-memory content as `iodata()` (a list, e.g. `[binary]`). Note that plain binaries are always treated as filesystem paths, so wrap raw content in a list.
+    - a struct stream such as `File.stream!/1` or any struct `Enumerable`, sent with chunked transfer encoding.
   - `object_path`: The file path, including the file name. Should be of the format `folder/subfolder/filename.png`. The bucket must already exist before attempting to upload.
   - `options`: Optional `Enumerable` that represents the `Supabase.Storage.FileOptions`.
   """
-  @spec upload(Storage.t(), file_path, object_path, options) :: Supabase.result(map)
-        when file_path: Path.t(),
+  @spec upload(Storage.t(), source, object_path, options) :: Supabase.result(map)
+        when source: Path.t() | iodata() | Enumerable.t(),
              object_path: Path.t(),
              options: Enumerable.t()
-  def upload(%Storage{} = s, file_path, object_path, opts \\ %{})
-      when is_binary(file_path) and is_binary(object_path) do
+  def upload(%Storage{} = s, source, object_path, opts \\ %{})
+      when is_binary(object_path) do
     {:ok, opts} = FileOptions.parse(opts)
 
     clean_path =
@@ -104,7 +107,7 @@ defmodule Supabase.Storage.File do
       |> String.replace(~r/\/+/, "/")
 
     with {:ok, %{body: body}} <-
-           FileHandler.create_file(s.client, s.bucket_id, clean_path, file_path, opts) do
+           FileHandler.create_file(s.client, s.bucket_id, clean_path, source, opts) do
       {:ok, %{path: clean_path, id: body["Id"], key: body["Key"]}}
     end
   end
@@ -115,15 +118,15 @@ defmodule Supabase.Storage.File do
   ## Params
 
   - `storage`: The `Supabase.Storage` instance created with `Supabase.Storage.from/2`.
-  - `file_path`: The **local** filesystem path, to upload from.
+  - `source`: The content to upload. Accepts the same values as `upload/4`.
   - `object_path`: The file path, including the file name. Should be of the format `folder/subfolder/filename.png`. The bucket must already exist before attempting to upload.
   - `options`: Optional `Enumerable` that represents the `Supabase.Storage.FileOptions`.
   """
-  @spec update(Storage.t(), file_path, object_path, options) :: Supabase.result(map)
-        when file_path: Path.t(),
+  @spec update(Storage.t(), source, object_path, options) :: Supabase.result(map)
+        when source: Path.t() | iodata() | Enumerable.t(),
              object_path: Path.t(),
              options: Enumerable.t()
-  def update(%Storage{} = s, file_path, object_path, opts \\ %{}) do
+  def update(%Storage{} = s, source, object_path, opts \\ %{}) do
     {:ok, opts} = FileOptions.parse(opts)
 
     clean_path =
@@ -132,7 +135,7 @@ defmodule Supabase.Storage.File do
       |> String.replace(~r/\/+/, "/")
 
     with {:ok, %{body: body}} <-
-           FileHandler.update_file(s.client, s.bucket_id, clean_path, file_path, opts) do
+           FileHandler.update_file(s.client, s.bucket_id, clean_path, source, opts) do
       {:ok, %{path: clean_path, id: body["Id"], key: body["Key"]}}
     end
   end
@@ -144,18 +147,18 @@ defmodule Supabase.Storage.File do
 
   - `storage`: The `Supabase.Storage` instance created with `Supabase.Storage.from/2`.
   - `token`: token The token generated from `create_signed_upload_url/3`.
-  - `file_path`: The **local** filesystem path, to upload from.
+  - `source`: The content to upload. Accepts the same values as `upload/4`.
   - `object_path`: The file path, including the file name. Should be of the format `folder/subfolder/filename.png`. The bucket must already exist before attempting to upload.
   - `options`: Optional `Enumerable` that represents the `Supabase.Storage.FileOptions`.
   """
-  @spec upload_to_signed_url(Storage.t(), token, file_path, object_path, options) ::
+  @spec upload_to_signed_url(Storage.t(), token, source, object_path, options) ::
           Supabase.result(map)
-        when file_path: Path.t(),
+        when source: Path.t() | iodata() | Enumerable.t(),
              object_path: Path.t(),
              options: Enumerable.t(),
              token: String.t()
-  def upload_to_signed_url(%Storage{} = s, token, file_path, object_path, opts \\ %{})
-      when is_binary(token) and is_binary(file_path) and is_binary(object_path) do
+  def upload_to_signed_url(%Storage{} = s, token, source, object_path, opts \\ %{})
+      when is_binary(token) and is_binary(object_path) do
     {:ok, opts} = FileOptions.parse(opts)
 
     clean_path =
@@ -169,7 +172,7 @@ defmodule Supabase.Storage.File do
              s.bucket_id,
              token,
              clean_path,
-             file_path,
+             source,
              opts
            ) do
       {:ok, %{path: clean_path, full_path: body["Key"]}}
