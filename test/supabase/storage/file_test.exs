@@ -254,6 +254,18 @@ defmodule Supabase.Storage.FileTest do
 
       assert url =~ "download=custom.png"
     end
+
+    test "appends the cache nonce param", %{storage: storage} do
+      @mock
+      |> expect(:request, fn %Request{}, _opts ->
+        respond(200, ~s({"signedURL": "/object/sign/main/a.png?token=token-123"}))
+      end)
+
+      assert {:ok, url} =
+               SFile.create_signed_url(storage, "a.png", expires_in: 60, cache_nonce: "abc123")
+
+      assert url =~ "cacheNonce=abc123"
+    end
   end
 
   describe "create_signed_urls/3" do
@@ -286,6 +298,19 @@ defmodule Supabase.Storage.FileTest do
                SFile.create_signed_urls(storage, ["a.png"], expires_in: 60, download: true)
 
       assert url =~ "download="
+    end
+
+    test "appends the cache nonce param to every url", %{storage: storage} do
+      body =
+        ~s([{"path": "a.png", "signedURL": "/object/sign/main/a.png?token=t1", "error": null}])
+
+      @mock
+      |> expect(:request, fn %Request{}, _opts -> respond(200, body) end)
+
+      assert {:ok, [%{signed_url: url}]} =
+               SFile.create_signed_urls(storage, ["a.png"], expires_in: 60, cache_nonce: "xyz")
+
+      assert url =~ "cacheNonce=xyz"
     end
   end
 
@@ -384,6 +409,11 @@ defmodule Supabase.Storage.FileTest do
       assert url =~ "download=custom.png"
     end
 
+    test "appends the cache nonce param", %{storage: storage} do
+      assert {:ok, url} = SFile.get_public_url(storage, "a.png", cache_nonce: "abc123")
+      assert url =~ "cacheNonce=abc123"
+    end
+
     test "uses the render path and transform query when transform is given", %{
       storage: storage
     } do
@@ -440,6 +470,16 @@ defmodule Supabase.Storage.FileTest do
 
       assert {:ok, "file-content"} =
                SFile.download(storage, "a.png", transform: %{width: 100})
+    end
+
+    test "appends the cache nonce query", %{storage: storage} do
+      @mock
+      |> expect(:request, fn %Request{url: url}, _opts ->
+        assert url.query =~ "cacheNonce=abc123"
+        respond(200, "file-content")
+      end)
+
+      assert {:ok, "file-content"} = SFile.download(storage, "a.png", cache_nonce: "abc123")
     end
   end
 

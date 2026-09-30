@@ -262,6 +262,7 @@ defmodule Supabase.Storage.File do
   - `options.expires_in`: The number of seconds until the signed URL expires. For example, `60` for a URL which is valid for one minute.
   - `options.download`: Triggers the file as a download if set to true. Set this parameter as the name of the file if you want to trigger the download with a different filename.
   - `options.transform`: An `Enumerable` that represents the `Supabase.Storage.TransformOptions` to transform the asset before serving it to the client.
+  - `options.cache_nonce`: Append a cache nonce parameter to the URL to bust previously cached signed URLs.
   """
   @spec create_signed_url(Storage.t(), object_path, options) :: Supabase.result(String.t())
         when object_path: Path.t(),
@@ -270,10 +271,10 @@ defmodule Supabase.Storage.File do
                  {:download, boolean | String.t() | nil}
                  | {:transform, Enumerable.t() | nil}
                  | {:expires_in, integer}
+                 | {:cache_nonce, String.t() | nil}
                )
   def create_signed_url(%Storage{} = s, path, opts \\ []) do
     _ = Keyword.fetch!(opts, :expires_in)
-    download = Keyword.get(opts, :download)
 
     clean_path =
       path
@@ -282,14 +283,7 @@ defmodule Supabase.Storage.File do
 
     with {:ok, resp} <- FileHandler.create_signed_url(s.client, s.bucket_id, clean_path, opts) do
       uri = URI.parse(Path.join(s.client.storage_url, resp.body["signedURL"]))
-
-      if download do
-        query = URI.encode_query(%{"download" => if(download === true, do: "", else: download)})
-        uri = URI.append_query(uri, query)
-        {:ok, to_string(uri)}
-      else
-        {:ok, to_string(uri)}
-      end
+      {:ok, to_string(append_url_opts(uri, opts))}
     end
   end
 
@@ -307,6 +301,7 @@ defmodule Supabase.Storage.File do
     - `:download`: A boolean or string indicating whether to download the file.
     - `:transform`: An enumerable of transformations to apply to the file.
     - `:expires_in`: An integer indicating the expiration time in seconds.
+    - `:cache_nonce`: Append a cache nonce parameter to bust previously cached signed URLs.
 
     ## Returns
 
@@ -321,10 +316,10 @@ defmodule Supabase.Storage.File do
                  {:download, boolean | String.t() | nil}
                  | {:transform, Enumerable.t() | nil}
                  | {:expires_in, integer}
+                 | {:cache_nonce, String.t() | nil}
                )
   def create_signed_urls(%Storage{} = s, paths, opts \\ []) when is_list(paths) do
     _ = Keyword.fetch!(opts, :expires_in)
-    download = Keyword.get(opts, :download)
 
     clean_paths =
       Enum.map(paths, &(String.replace(&1, ~r/^\/|\/$/, "") |> String.replace(~r/\/+/, "/")))
@@ -336,16 +331,7 @@ defmodule Supabase.Storage.File do
       {:ok,
        for item <- items do
          uri = URI.parse(Path.join(s.client.storage_url, item.signed_url))
-
-         if is_nil(download) do
-           %{item | signed_url: to_string(uri)}
-         else
-           query =
-             URI.encode_query(%{"download" => if(download === true, do: "", else: download)})
-
-           uri = URI.append_query(uri, query)
-           %{item | signed_url: to_string(uri)}
-         end
+         %{item | signed_url: to_string(append_url_opts(uri, opts))}
        end}
     end
   end
@@ -482,6 +468,7 @@ defmodule Supabase.Storage.File do
   - `path`: The path and name of the file to generate the public URL for. For example `folder/image.png`.
   - `options.download`: Triggers the file as a download if set to true. Set this parameter as the name of the file if you want to trigger the download with a different filename.
   - `options.transform`: `Supabase.Storage.TransformOptions` the asset before serving it to the client, as an `Enumerable`.
+  - `options.cache_nonce`: Append a cache nonce parameter to the URL to bust previously cached public URLs.
   """
   @spec get_public_url(Storage.t(), object_path, options) :: Supabase.result(String.t())
         when object_path: Path.t(),
@@ -489,10 +476,10 @@ defmodule Supabase.Storage.File do
                list(
                  {:download, boolean | String.t() | nil}
                  | {:transform, Enumerable.t() | nil}
+                 | {:cache_nonce, String.t() | nil}
                )
   def get_public_url(%Storage{} = s, path, opts \\ [])
       when is_binary(path) and is_list(opts) do
-    download = Keyword.get(opts, :download)
     transform = Keyword.get(opts, :transform)
 
     {:ok, transform} = if transform, do: TransformOptions.parse(transform), else: {:ok, nil}
@@ -514,14 +501,7 @@ defmodule Supabase.Storage.File do
     transform_query = if is_nil(transform), do: "", else: to_string(transform)
     uri = if transform_query == "", do: uri, else: URI.append_query(uri, transform_query)
 
-    if is_nil(download) do
-      {:ok, to_string(uri)}
-    else
-      query = URI.encode_query(%{"download" => if(download === true, do: "", else: download)})
-      uri = URI.append_query(uri, query)
-      uri = if transform_query == "", do: uri, else: URI.append_query(uri, transform_query)
-      {:ok, to_string(uri)}
-    end
+    {:ok, to_string(append_url_opts(uri, opts))}
   end
 
   @doc """
@@ -561,14 +541,19 @@ defmodule Supabase.Storage.File do
   ## Params
   - `path`: The full path and file name of the file to be downloaded. For example `folder/image.png`.
   - `options.transform`: Transform the asset before serving it to the client.
+  - `options.cache_nonce`: Append a cache nonce parameter to the request URL to bust the cached object.
   """
   @spec download(Storage.t(), path :: Path.t(), options) :: Supabase.result(binary)
-        when options: list({:transform, Enumerable.t() | nil})
+        when options:
+               list(
+                 {:transform, Enumerable.t() | nil} | {:cache_nonce, String.t() | nil}
+               )
   def download(%Storage{} = s, path, opts \\ [])
       when is_binary(path) and is_list(opts) do
     transform = Keyword.get(opts, :transform)
+    cache_nonce = Keyword.get(opts, :cache_nonce)
 
-    with {:ok, resp} <- FileHandler.get(s.client, s.bucket_id, path, transform) do
+    with {:ok, resp} <- FileHandler.get(s.client, s.bucket_id, path, transform, cache_nonce) do
       {:ok, resp.body}
     end
   end
@@ -579,20 +564,46 @@ defmodule Supabase.Storage.File do
   ## Params
   - `path`: The full path and file name of the file to be downloaded. For example `folder/image.png`.
   - `options.transform`: Transform the asset before serving it to the client.
+  - `options.cache_nonce`: Append a cache nonce parameter to the request URL to bust the cached object.
   """
   @spec download_lazy(Storage.t(), path :: Path.t(), on_response, options) ::
           Supabase.result(binary)
-        when options: list({:transform, Enumerable.t() | nil}),
+        when options:
+               list(
+                 {:transform, Enumerable.t() | nil} | {:cache_nonce, String.t() | nil}
+               ),
              on_response: ({Supabase.Fetcher.status(), Supabase.Fetcher.headers(), binary} ->
                              Supabase.result(Supabase.Fetcher.Response.t()))
   def download_lazy(%Storage{} = s, path, on_response, opts \\ [])
       when is_binary(path) and is_list(opts) do
     transform = Keyword.get(opts, :transform)
+    cache_nonce = Keyword.get(opts, :cache_nonce)
 
-    with {:ok, resp} <- FileHandler.get_lazy(s.client, s.bucket_id, path, transform, on_response) do
+    with {:ok, resp} <-
+           FileHandler.get_lazy(s.client, s.bucket_id, path, transform, cache_nonce, on_response) do
       {:ok, resp.body}
     end
   end
+
+  defp append_url_opts(%URI{} = uri, opts) do
+    download =
+      case Keyword.get(opts, :download) do
+        nil -> nil
+        false -> nil
+        true -> ""
+        filename -> filename
+      end
+
+    query =
+      %{}
+      |> maybe_put_param("download", download)
+      |> maybe_put_param("cacheNonce", Keyword.get(opts, :cache_nonce))
+
+    if map_size(query) == 0, do: uri, else: URI.append_query(uri, URI.encode_query(query))
+  end
+
+  defp maybe_put_param(params, _key, nil), do: params
+  defp maybe_put_param(params, key, value), do: Map.put(params, key, value)
 
   @doc """
   Purges the CDN cache for a single file. Maps to `DELETE /cdn/{bucket}/{path}`.

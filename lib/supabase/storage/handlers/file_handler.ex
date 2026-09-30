@@ -236,55 +236,48 @@ defmodule Supabase.Storage.FileHandler do
     |> Fetcher.request()
   end
 
-  @spec get(Client.t(), bucket_id, object_path, map | nil) :: Supabase.result(Response.t())
-  def get(%Client{} = client, bucket_id, wildcard, transform) do
-    {:ok, transform} =
-      if transform, do: Transform.parse(transform), else: {:ok, nil}
-
-    render_path = if transform, do: "render/image/authenticated", else: "object"
-    transform_query = if transform, do: to_string(transform), else: ""
-
-    uri =
-      [render_path, bucket_id, wildcard]
-      |> Path.join()
-      |> URI.parse()
-      |> URI.append_query(transform_query)
+  @spec get(Client.t(), bucket_id, object_path, map | nil, String.t() | nil) ::
+          Supabase.result(Response.t())
+  def get(%Client{} = client, bucket_id, wildcard, transform, cache_nonce \\ nil) do
+    uri = download_uri(bucket_id, wildcard, transform, cache_nonce)
 
     client
-    |> Storage.Request.base(to_string(uri))
+    |> Storage.Request.base(uri)
     |> Request.with_method(:get)
     |> Request.with_headers(%{"accept" => MIME.from_path(wildcard)})
     |> Request.with_body_decoder(nil)
     |> Fetcher.request()
   end
 
-  @spec get_lazy(Client.t(), bucket_id, wildcard, term) :: Supabase.result(Response.t())
-  def get_lazy(%Client{} = client, bucket_id, wildcard, transform) do
-    {:ok, transform} =
-      if transform, do: Transform.parse(transform), else: {:ok, nil}
-
-    render_path = if transform, do: "render/image/authenticated", else: "object"
-    transform_query = if transform, do: to_string(transform), else: ""
-
-    uri =
-      [render_path, bucket_id, wildcard]
-      |> Path.join()
-      |> URI.parse()
-      |> URI.append_query(transform_query)
+  @spec get_lazy(Client.t(), bucket_id, wildcard, term, String.t() | nil) ::
+          Supabase.result(Response.t())
+  def get_lazy(%Client{} = client, bucket_id, wildcard, transform, cache_nonce \\ nil) do
+    uri = download_uri(bucket_id, wildcard, transform, cache_nonce)
 
     client
-    |> Storage.Request.base(to_string(uri))
+    |> Storage.Request.base(uri)
     |> Request.with_method(:get)
     |> Request.with_headers(%{"accept" => MIME.from_path(wildcard)})
     |> Request.with_body_decoder(nil)
     |> Fetcher.stream()
   end
 
-  @spec get_lazy(Client.t(), bucket_id, wildcard, term, on_response) ::
+  @spec get_lazy(Client.t(), bucket_id, wildcard, term, String.t() | nil, on_response) ::
           Supabase.result(Response.t())
         when on_response: ({Fetcher.status(), Fetcher.headers(), binary} ->
                              Supabase.result(Response.t()))
-  def get_lazy(%Client{} = client, bucket_id, wildcard, transform, on_response) do
+  def get_lazy(%Client{} = client, bucket_id, wildcard, transform, cache_nonce, on_response) do
+    uri = download_uri(bucket_id, wildcard, transform, cache_nonce)
+
+    client
+    |> Storage.Request.base(uri)
+    |> Request.with_method(:get)
+    |> Request.with_headers(%{"accept" => MIME.from_path(wildcard)})
+    |> Request.with_body_decoder(nil)
+    |> Fetcher.stream(on_response)
+  end
+
+  defp download_uri(bucket_id, wildcard, transform, cache_nonce) do
     {:ok, transform} =
       if transform, do: Transform.parse(transform), else: {:ok, nil}
 
@@ -297,12 +290,9 @@ defmodule Supabase.Storage.FileHandler do
       |> URI.parse()
       |> URI.append_query(transform_query)
 
-    client
-    |> Storage.Request.base(to_string(uri))
-    |> Request.with_method(:get)
-    |> Request.with_headers(%{"accept" => MIME.from_path(wildcard)})
-    |> Request.with_body_decoder(nil)
-    |> Fetcher.stream(on_response)
+    uri = if cache_nonce, do: URI.append_query(uri, URI.encode_query(%{"cacheNonce" => cache_nonce})), else: uri
+
+    to_string(uri)
   end
 
   def exists(%Client{} = client, bucket_id, path) do
