@@ -40,7 +40,7 @@ defmodule Supabase.Storage.VectorTest do
       |> expect(:request, fn %Request{url: url, body: body}, _opts ->
         assert String.ends_with?(url.path, "/vector/CreateVectorBucket")
 
-        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+        body = body |> IO.iodata_to_binary() |> JSON.decode!()
 
         assert body["vectorBucketName"] == "embeddings"
         refute Map.has_key?(body, "vector_bucket_name")
@@ -72,7 +72,7 @@ defmodule Supabase.Storage.VectorTest do
       |> expect(:request, fn %Request{url: url, body: body}, _opts ->
         assert String.ends_with?(url.path, "/vector/GetVectorBucket")
 
-        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+        body = body |> IO.iodata_to_binary() |> JSON.decode!()
 
         assert body["vectorBucketName"] == "embeddings"
         refute Map.has_key?(body, "vector_bucket_name")
@@ -188,7 +188,7 @@ defmodule Supabase.Storage.VectorTest do
     test "it should list vector buckets with pagination", %{client: client} do
       @mock
       |> expect(:request, fn %Request{body: body}, _opts ->
-        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+        body = body |> IO.iodata_to_binary() |> JSON.decode!()
 
         assert body["maxResults"] == 50
         assert body["nextToken"] == "previous-token"
@@ -280,7 +280,7 @@ defmodule Supabase.Storage.VectorTest do
       |> expect(:request, fn %Request{url: url, body: body}, _opts ->
         assert String.ends_with?(url.path, "/vector/CreateIndex")
 
-        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+        body = body |> IO.iodata_to_binary() |> JSON.decode!()
 
         assert body["vectorBucketName"] == "embeddings"
         assert body["indexName"] == "documents-openai"
@@ -320,7 +320,7 @@ defmodule Supabase.Storage.VectorTest do
       |> expect(:request, fn %Request{url: url, body: body}, _opts ->
         assert String.ends_with?(url.path, "/vector/GetIndex")
 
-        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+        body = body |> IO.iodata_to_binary() |> JSON.decode!()
 
         assert body["vectorBucketName"] == "embeddings"
         assert body["indexName"] == "documents-openai"

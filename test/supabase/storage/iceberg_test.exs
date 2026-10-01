@@ -234,7 +234,7 @@ defmodule Supabase.Storage.IcebergTest do
       |> expect(:request, fn %Request{url: url} = req, _opts ->
         assert req.method == :post
         assert url.path =~ "/namespaces/default/tables"
-        body = req.body |> IO.iodata_to_binary() |> Jason.decode!()
+        body = req.body |> IO.iodata_to_binary() |> JSON.decode!()
         assert body["name"] == "events"
         assert body["partition-spec"] == %{"spec-id" => 0, "fields" => []}
         assert body["write-order"] == %{"order-id" => 0, "fields" => []}

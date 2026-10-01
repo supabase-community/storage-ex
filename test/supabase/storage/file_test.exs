@@ -161,7 +161,7 @@ defmodule Supabase.Storage.FileTest do
         respond(200, ~s({"Id": "obj-id", "Key": "main/logs/big.log"}))
       end)
 
-      stream = File.stream!(path, [], 2048)
+      stream = File.stream!(path, 2048)
 
       assert {:ok, %{path: "logs/big.log"}} = SFile.upload(storage, stream, "logs/big.log")
     end

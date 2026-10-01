@@ -348,7 +348,10 @@ defmodule Supabase.Storage.Iceberg do
           namespace: namespace,
           name: String.t()
         }) :: Supabase.result(:renamed)
-  def rename_table(%__MODULE__{} = i, %{namespace: src_ns, name: src}, %{namespace: dst_ns, name: dst}) do
+  def rename_table(%__MODULE__{} = i, %{namespace: src_ns, name: src}, %{
+        namespace: dst_ns,
+        name: dst
+      }) do
     body = %{
       source: %{namespace: List.wrap(src_ns), name: src},
       destination: %{namespace: List.wrap(dst_ns), name: dst}

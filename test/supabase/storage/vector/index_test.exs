@@ -26,7 +26,7 @@ defmodule Supabase.Storage.Vector.IndexTest do
       |> expect(:request, fn %Request{url: url, body: body}, _opts ->
         assert String.ends_with?(url.path, "/vector/PutVectors")
 
-        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+        body = body |> IO.iodata_to_binary() |> JSON.decode!()
 
         assert body["vectorBucketName"] == "embeddings"
         assert body["indexName"] == "documents"
@@ -85,7 +85,7 @@ defmodule Supabase.Storage.Vector.IndexTest do
       |> expect(:request, fn %Request{url: url, body: body}, _opts ->
         assert String.ends_with?(url.path, "/vector/GetVectors")
 
-        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+        body = body |> IO.iodata_to_binary() |> JSON.decode!()
 
         assert body["vectorBucketName"] == "embeddings"
         assert body["indexName"] == "documents"
@@ -130,7 +130,7 @@ defmodule Supabase.Storage.Vector.IndexTest do
       |> expect(:request, fn %Request{url: url, body: body}, _opts ->
         assert String.ends_with?(url.path, "/vector/ListVectors")
 
-        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+        body = body |> IO.iodata_to_binary() |> JSON.decode!()
 
         assert body["vectorBucketName"] == "embeddings"
         assert body["indexName"] == "documents"
@@ -192,7 +192,7 @@ defmodule Supabase.Storage.Vector.IndexTest do
       |> expect(:request, fn %Request{url: url, body: body}, _opts ->
         assert String.ends_with?(url.path, "/vector/QueryVectors")
 
-        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+        body = body |> IO.iodata_to_binary() |> JSON.decode!()
 
         assert body["vectorBucketName"] == "embeddings"
         assert body["indexName"] == "documents"
@@ -241,7 +241,7 @@ defmodule Supabase.Storage.Vector.IndexTest do
       |> expect(:request, fn %Request{url: url, body: body}, _opts ->
         assert String.ends_with?(url.path, "/vector/DeleteVectors")
 
-        body = body |> IO.iodata_to_binary() |> Jason.decode!()
+        body = body |> IO.iodata_to_binary() |> JSON.decode!()
 
         assert body["vectorBucketName"] == "embeddings"
         assert body["indexName"] == "documents"
