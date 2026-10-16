@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.7.0](https://github.com/supabase-community/storage-ex/compare/v0.6.1...v0.7.0) (2026-10-16)
+
+
+### Features
+
+* analytics buckets api ([f25fff5](https://github.com/supabase-community/storage-ex/commit/f25fff51887fc8d83dc238d977c9b23db69339ae))
+* cache_nonce option on signed urls and downloads ([625dd12](https://github.com/supabase-community/storage-ex/commit/625dd1296450b6e2b0c6e4cd6907deef6bec4384))
+* cdn cache purge for buckets and files ([50ee5f7](https://github.com/supabase-community/storage-ex/commit/50ee5f75a2e2a2669e04c2fd3003662b193f2951))
+* iceberg catalog write operations ([f119a3e](https://github.com/supabase-community/storage-ex/commit/f119a3e21e458ae7b3cc7b5ff75593118fc116fb))
+* in-memory and streaming upload bodies ([8e37308](https://github.com/supabase-community/storage-ex/commit/8e373089e7f7fd372684cc8ae7918641bf440020))
+* per-request receive_timeout option ([e9e7d15](https://github.com/supabase-community/storage-ex/commit/e9e7d15cd50a0c43bc95cc02309fe8a5485b28cd))
+* read-only iceberg rest catalog client ([4776203](https://github.com/supabase-community/storage-ex/commit/4776203a1cf5544415610daff64a768e5f7acad3))
+
+
+### Miscellaneous Chores
+
+* do not use jason directly ([d061f0d](https://github.com/supabase-community/storage-ex/commit/d061f0d5cab21d411b321dda2c1df70eeb48427d))
+* remove internal file ([a9ca24e](https://github.com/supabase-community/storage-ex/commit/a9ca24ecc8530cc74f188c2e8c76929c0e06b069))
+
 ## [0.6.1](https://github.com/supabase-community/storage-ex/compare/v0.6.0...v0.6.1) (2026-08-27)
 
 
