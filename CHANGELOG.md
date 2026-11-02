@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/supabase-community/storage-ex/compare/v0.7.0...v0.7.1) (2026-11-02)
+
+
+### Miscellaneous Chores
+
+* **nix:** migrate dev shell to beam-overlay ([3f91eb5](https://github.com/supabase-community/storage-ex/commit/3f91eb55c57d4b9ac0d84a9a6a1c250475947a8a))
+
 ## [0.7.0](https://github.com/supabase-community/storage-ex/compare/v0.6.1...v0.7.0) (2026-10-16)
 
 
