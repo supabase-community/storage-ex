@@ -45,7 +45,11 @@ defmodule Supabase.Storage.BucketHandler do
   @spec update(Client.t(), bucket_id, Bucket.t()) :: Supabase.result(Response.t())
   def update(%Client{} = client, id, attrs) do
     uri = Endpoints.bucket_path_with_id(id)
-    attrs = Map.take(attrs, [:public, :file_size_limit, :allowed_mime_types, :type])
+
+    attrs =
+      attrs
+      |> Map.take([:public, :file_size_limit, :allowed_mime_types, :type])
+      |> Map.update!(:file_size_limit, &encode_file_size_limit/1)
 
     client
     |> Storage.Request.base(uri)
@@ -85,4 +89,11 @@ defmodule Supabase.Storage.BucketHandler do
     |> Request.with_query(query)
     |> Fetcher.request()
   end
+
+  defp encode_file_size_limit(nil), do: nil
+
+  defp encode_file_size_limit(%Bucket.FileSizeLimit{unit: :byte, size: size}), do: size
+
+  defp encode_file_size_limit(%Bucket.FileSizeLimit{} = file_size_limit),
+    do: to_string(file_size_limit)
 end
