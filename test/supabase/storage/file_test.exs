@@ -498,7 +498,7 @@ defmodule Supabase.Storage.FileTest do
       body = """
       {
         "hasNext": true,
-        "cursor": "next-cursor",
+        "nextCursor": "next-cursor",
         "folders": ["sub/"],
         "objects": [{"id": "a", "name": "a.png", "bucket_id": "main"}]
       }

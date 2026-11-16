@@ -424,7 +424,7 @@ defmodule Supabase.Storage.File do
 
       result = %{
         has_next: body["hasNext"] || false,
-        cursor: body["cursor"],
+        cursor: body["nextCursor"],
         folders: body["folders"] || [],
         objects: objects
       }
