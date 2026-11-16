@@ -518,10 +518,34 @@ defmodule Supabase.Storage.FileTest do
 
     test "defaults missing fields", %{storage: storage} do
       @mock
-      |> expect(:request, fn %Request{}, _opts -> respond(200, ~s({})) end)
+      |> expect(:request, fn %Request{body: body}, _opts ->
+        assert JSON.decode!(IO.iodata_to_binary(body)) == %{"prefix" => ""}
+        respond(200, ~s({}))
+      end)
 
       assert {:ok, %{has_next: false, cursor: nil, folders: [], objects: []}} =
                SFile.list_v2(storage)
+    end
+
+    test "sends explicit request options with a prefix", %{storage: storage} do
+      @mock
+      |> expect(:request, fn %Request{body: body}, _opts ->
+        assert JSON.decode!(IO.iodata_to_binary(body)) == %{
+                 "prefix" => "folder",
+                 "limit" => 50,
+                 "cursor" => "page-cursor",
+                 "with_delimiter" => true
+               }
+
+        respond(200, ~s({}))
+      end)
+
+      assert {:ok, %{has_next: false, cursor: nil, folders: [], objects: []}} =
+               SFile.list_v2(storage, "folder", %{
+                 limit: 50,
+                 cursor: "page-cursor",
+                 with_delimiter: true
+               })
     end
 
     test "keeps the raw map when an object fails to parse", %{storage: storage} do

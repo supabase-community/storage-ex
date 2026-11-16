@@ -18,14 +18,14 @@ defmodule Supabase.Storage.ListV2Options do
   @typedoc """
   A `ListV2Options` consists of the following attributes:
 
-  - `limit`: The number of files you want to be returned. Defaults to 100.
+  - `limit`: The number of files you want to be returned.
   - `cursor`: The pagination cursor from a previous response. Use this to get the next page.
   - `with_delimiter`: Enable folder hierarchy grouping when set to true.
   """
   @type t :: %__MODULE__{
-          limit: integer(),
+          limit: integer() | nil,
           cursor: String.t() | nil,
-          with_delimiter: boolean()
+          with_delimiter: boolean() | nil
         }
 
   @fields ~w(limit cursor with_delimiter)a
@@ -33,9 +33,9 @@ defmodule Supabase.Storage.ListV2Options do
   @primary_key false
   @derive JSON.Encoder
   embedded_schema do
-    field(:limit, :integer, default: 100)
+    field(:limit, :integer)
     field(:cursor, :string)
-    field(:with_delimiter, :boolean, default: false)
+    field(:with_delimiter, :boolean)
   end
 
   @spec parse(map) :: {:ok, t} | {:error, Ecto.Changeset.t()}

@@ -89,8 +89,8 @@ defmodule Supabase.Storage.OptionsTest do
   end
 
   describe "ListV2Options.parse/1" do
-    test "applies defaults on empty input" do
-      assert {:ok, %ListV2Options{limit: 100, cursor: nil, with_delimiter: false}} =
+    test "leaves omitted options nil" do
+      assert {:ok, %ListV2Options{limit: nil, cursor: nil, with_delimiter: nil}} =
                ListV2Options.parse(%{})
     end
 
