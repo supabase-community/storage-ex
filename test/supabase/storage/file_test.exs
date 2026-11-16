@@ -364,9 +364,45 @@ defmodule Supabase.Storage.FileTest do
   describe "list/3" do
     test "returns the raw body list", %{storage: storage} do
       @mock
-      |> expect(:request, fn %Request{}, _opts -> respond(200, ~s([{"id": "a"}])) end)
+      |> expect(:request, fn %Request{body: request_body} = req, _opts ->
+        assert req.method == :post
+
+        assert JSON.decode!(IO.iodata_to_binary(request_body)) == %{
+                 "prefix" => "folder",
+                 "limit" => 100,
+                 "offset" => 0,
+                 "sortBy" => %{"column" => "name", "order" => "asc"}
+               }
+
+        respond(200, ~s([{"id": "a"}]))
+      end)
 
       assert {:ok, [%SFile{id: "a"}]} = SFile.list(storage, "folder")
+    end
+
+    test "sends non-default search options", %{storage: storage} do
+      @mock
+      |> expect(:request, fn %Request{body: request_body} = req, _opts ->
+        assert req.method == :post
+
+        assert JSON.decode!(IO.iodata_to_binary(request_body)) == %{
+                 "prefix" => "folder",
+                 "limit" => 25,
+                 "offset" => 5,
+                 "search" => "photo",
+                 "sortBy" => %{"column" => "created_at", "order" => "desc"}
+               }
+
+        respond(200, ~s([{"id": "a"}]))
+      end)
+
+      assert {:ok, [%SFile{id: "a"}]} =
+               SFile.list(storage, "folder", %{
+                 limit: 25,
+                 offset: 5,
+                 search: "photo",
+                 sort_by: %{column: "created_at", order: "desc"}
+               })
     end
   end
 

@@ -31,7 +31,7 @@ defmodule Supabase.Storage.ListV2Options do
   @fields ~w(limit cursor with_delimiter)a
 
   @primary_key false
-  @derive Jason.Encoder
+  @derive JSON.Encoder
   embedded_schema do
     field(:limit, :integer, default: 100)
     field(:cursor, :string)

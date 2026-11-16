@@ -55,7 +55,7 @@ defmodule Supabase.Storage.FileHandler do
       "cache-control" => "max-age=#{opts.cache_control}",
       "content-type" => opts.content_type,
       "x-upsert" => to_string(opts.upsert),
-      "x-metadata" => Base.encode64(Jason.encode!(opts.metadata))
+      "x-metadata" => Base.encode64(JSON.encode!(opts.metadata))
     })
     |> Request.with_headers(opts.headers)
     |> dispatch_upload(source, opts)
@@ -152,10 +152,21 @@ defmodule Supabase.Storage.FileHandler do
   @spec list(Client.t(), bucket_id, prefix, search_opts) :: Supabase.result(Response.t())
   def list(%Client{} = client, bucket_id, prefix, %Search{} = opts) do
     uri = Endpoints.file_list(bucket_id)
-    body = Map.merge(%{prefix: prefix || ""}, Map.from_struct(opts))
+
+    body =
+      %{
+        prefix: prefix || "",
+        limit: opts.limit,
+        offset: opts.offset,
+        sortBy: opts.sort_by,
+        search: opts.search
+      }
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      |> Enum.into(%{})
 
     client
     |> Storage.Request.base(uri)
+    |> Request.with_method(:post)
     |> Request.with_body_decoder(BodyDecoder, schema: File)
     |> Request.with_headers(%{"content-type" => "application/json"})
     |> Request.with_body(body)
