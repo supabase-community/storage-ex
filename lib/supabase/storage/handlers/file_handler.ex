@@ -115,10 +115,10 @@ defmodule Supabase.Storage.FileHandler do
     client
     |> Storage.Request.base(Endpoints.file_move())
     |> Request.with_body(%{
-      bucket_id: bucket_id,
-      source_key: path,
-      destination_key: to,
-      destination_bucket: dest
+      bucketId: bucket_id,
+      sourceKey: path,
+      destinationKey: to,
+      destinationBucket: dest
     })
     |> Request.with_method(:post)
     |> Fetcher.request()
@@ -130,10 +130,10 @@ defmodule Supabase.Storage.FileHandler do
     client
     |> Storage.Request.base(Endpoints.file_copy())
     |> Request.with_body(%{
-      bucket_id: bucket_id,
-      source_key: path,
-      destination_key: to,
-      destination_bucket: dest
+      bucketId: bucket_id,
+      sourceKey: path,
+      destinationKey: to,
+      destinationBucket: dest
     })
     |> Request.with_method(:post)
     |> Fetcher.request()

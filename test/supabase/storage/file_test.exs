@@ -234,9 +234,17 @@ defmodule Supabase.Storage.FileTest do
   describe "move/2" do
     test "moves a file and returns :moved", %{storage: storage} do
       @mock
-      |> expect(:request, fn %Request{url: url} = req, _opts ->
+      |> expect(:request, fn %Request{url: url, body: body} = req, _opts ->
         assert req.method == :post
         assert url.path =~ "/object/move"
+
+        assert JSON.decode!(IO.iodata_to_binary(body)) == %{
+                 "bucketId" => "main",
+                 "sourceKey" => "a.png",
+                 "destinationKey" => "b.png",
+                 "destinationBucket" => nil
+               }
+
         respond(200, ~s({"message": "Successfully moved"}))
       end)
 
@@ -245,8 +253,16 @@ defmodule Supabase.Storage.FileTest do
 
     test "supports a destination bucket", %{storage: storage} do
       @mock
-      |> expect(:request, fn %Request{body: body}, _opts ->
-        assert IO.iodata_to_binary(body) =~ ~s("destination_bucket":"other")
+      |> expect(:request, fn %Request{body: body} = req, _opts ->
+        assert req.method == :post
+
+        assert JSON.decode!(IO.iodata_to_binary(body)) == %{
+                 "bucketId" => "main",
+                 "sourceKey" => "a.png",
+                 "destinationKey" => "b.png",
+                 "destinationBucket" => "other"
+               }
+
         respond(200, ~s({"message": "Successfully moved"}))
       end)
 
@@ -258,8 +274,17 @@ defmodule Supabase.Storage.FileTest do
   describe "copy/2" do
     test "copies a file and returns :moved", %{storage: storage} do
       @mock
-      |> expect(:request, fn %Request{url: url}, _opts ->
+      |> expect(:request, fn %Request{url: url, body: body} = req, _opts ->
+        assert req.method == :post
         assert url.path =~ "/object/copy"
+
+        assert JSON.decode!(IO.iodata_to_binary(body)) == %{
+                 "bucketId" => "main",
+                 "sourceKey" => "a.png",
+                 "destinationKey" => "b.png",
+                 "destinationBucket" => nil
+               }
+
         respond(200, ~s({"Key": "main/b.png"}))
       end)
 
