@@ -211,11 +211,7 @@ defmodule Supabase.Storage.FileHandler do
 
     uri = Endpoints.file_signed_url(bucket_id, path)
 
-    transform =
-      if transform do
-        {:ok, parsed} = Transform.parse(transform)
-        parsed
-      end
+    transform = transform_body(transform)
 
     body =
       if transform do
@@ -236,7 +232,7 @@ defmodule Supabase.Storage.FileHandler do
           Supabase.result(Response.t())
   def create_signed_urls(%Client{} = client, bucket_id, paths, opts) when is_list(paths) do
     expires_in = Keyword.fetch!(opts, :expires_in)
-    transform = Keyword.get(opts, :transform)
+    transform = opts |> Keyword.get(:transform) |> transform_body()
 
     uri = Endpoints.file_signed_url(bucket_id)
 
@@ -361,4 +357,16 @@ defmodule Supabase.Storage.FileHandler do
 
   defp upload_http_opts(%Opts{receive_timeout: nil}), do: []
   defp upload_http_opts(%Opts{receive_timeout: timeout}), do: [receive_timeout: timeout]
+
+  defp transform_body(nil), do: nil
+
+  defp transform_body(attrs) do
+    {:ok, transform} = Transform.parse(attrs)
+
+    transform
+    |> Map.from_struct()
+    |> Map.take([:width, :height, :resize, :quality, :format])
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.new()
+  end
 end

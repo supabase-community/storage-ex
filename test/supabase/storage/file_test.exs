@@ -295,11 +295,32 @@ defmodule Supabase.Storage.FileTest do
   describe "create_signed_url/3" do
     test "returns the signed url", %{storage: storage} do
       @mock
-      |> expect(:request, fn %Request{}, _opts ->
+      |> expect(:request, fn %Request{body: body}, _opts ->
+        assert JSON.decode!(IO.iodata_to_binary(body)) == %{"expiresIn" => 60}
         respond(200, ~s({"signedURL": "/object/sign/main/a.png?token=token-123"}))
       end)
 
       assert {:ok, url} = SFile.create_signed_url(storage, "a.png", expires_in: 60)
+      assert url =~ "token=token-123"
+    end
+
+    test "sends only explicitly supplied transform options", %{storage: storage} do
+      @mock
+      |> expect(:request, fn %Request{body: body}, _opts ->
+        assert JSON.decode!(IO.iodata_to_binary(body)) == %{
+                 "expiresIn" => 60,
+                 "transform" => %{"width" => 100}
+               }
+
+        respond(200, ~s({"signedURL": "/object/sign/main/a.png?token=token-123"}))
+      end)
+
+      assert {:ok, url} =
+               SFile.create_signed_url(storage, "a.png",
+                 expires_in: 60,
+                 transform: %{width: 100}
+               )
+
       assert url =~ "token=token-123"
     end
 
@@ -350,10 +371,51 @@ defmodule Supabase.Storage.FileTest do
       """
 
       @mock
-      |> expect(:request, fn %Request{}, _opts -> respond(200, body) end)
+      |> expect(:request, fn %Request{body: request_body}, _opts ->
+        assert JSON.decode!(IO.iodata_to_binary(request_body)) == %{
+                 "expiresIn" => 60,
+                 "paths" => ["a.png", "b.png"]
+               }
+
+        respond(200, body)
+      end)
 
       assert {:ok, [%{path: "a.png", signed_url: u1}, %{path: "b.png", signed_url: u2}]} =
                SFile.create_signed_urls(storage, ["a.png", "b.png"], expires_in: 60)
+
+      assert u1 =~ "token=t1"
+      assert u2 =~ "token=t2"
+    end
+
+    test "parses transforms and sends only explicitly supplied options", %{storage: storage} do
+      response_body = """
+      [
+        {"path": "a.png", "signedURL": "/object/sign/main/a.png?token=t1", "error": null},
+        {"path": "b.png", "signedURL": "/object/sign/main/b.png?token=t2", "error": null}
+      ]
+      """
+
+      @mock
+      |> expect(:request, fn %Request{body: request_body}, _opts ->
+        assert JSON.decode!(IO.iodata_to_binary(request_body)) == %{
+                 "expiresIn" => 60,
+                 "paths" => ["a.png", "b.png"],
+                 "transform" => %{
+                   "height" => 50,
+                   "resize" => "fill",
+                   "quality" => 75,
+                   "format" => "webp"
+                 }
+               }
+
+        respond(200, response_body)
+      end)
+
+      assert {:ok, [%{path: "a.png", signed_url: u1}, %{path: "b.png", signed_url: u2}]} =
+               SFile.create_signed_urls(storage, ["a.png", "b.png"],
+                 expires_in: 60,
+                 transform: %{height: 50, resize: "fill", quality: 75, format: "webp"}
+               )
 
       assert u1 =~ "token=t1"
       assert u2 =~ "token=t2"
@@ -529,8 +591,7 @@ defmodule Supabase.Storage.FileTest do
                SFile.get_public_url(storage, "a.png", transform: %{width: 100, height: 100})
 
       assert url =~ "/render/image/public/main/a.png"
-      assert url =~ "width=100"
-      assert url =~ "height=100"
+      assert URI.decode_query(URI.parse(url).query) == %{"width" => "100", "height" => "100"}
     end
   end
 
@@ -573,6 +634,7 @@ defmodule Supabase.Storage.FileTest do
       @mock
       |> expect(:request, fn %Request{url: url}, _opts ->
         assert url.query =~ "width=100"
+        assert URI.decode_query(url.query) == %{"width" => "100"}
         respond(200, "file-content")
       end)
 
