@@ -375,9 +375,9 @@ defmodule Supabase.Storage.File do
   - `storage`: The `Supabase.Storage` instance created with `Supabase.Storage.from/2`.
   - `prefix`: The folder path.
   - `options`: An `Enumerable` with the following keys:
-    - `limit`: Number of results per page (default: 100)
+    - `limit`: Number of results per page
     - `cursor`: Pagination cursor from previous response
-    - `with_delimiter`: Enable folder hierarchy grouping (default: false)
+    - `with_delimiter`: Enable folder hierarchy grouping when set to true
 
   ## Returns
 
@@ -424,7 +424,7 @@ defmodule Supabase.Storage.File do
 
       result = %{
         has_next: body["hasNext"] || false,
-        cursor: body["cursor"],
+        cursor: body["nextCursor"],
         folders: body["folders"] || [],
         objects: objects
       }

@@ -89,8 +89,8 @@ defmodule Supabase.Storage.OptionsTest do
   end
 
   describe "ListV2Options.parse/1" do
-    test "applies defaults on empty input" do
-      assert {:ok, %ListV2Options{limit: 100, cursor: nil, with_delimiter: false}} =
+    test "leaves omitted options nil" do
+      assert {:ok, %ListV2Options{limit: nil, cursor: nil, with_delimiter: nil}} =
                ListV2Options.parse(%{})
     end
 
@@ -113,9 +113,9 @@ defmodule Supabase.Storage.OptionsTest do
               %TransformOptions{
                 width: nil,
                 height: nil,
-                resize: :cover,
-                quality: 80,
-                format: "origin"
+                resize: nil,
+                quality: nil,
+                format: nil
               }} = TransformOptions.parse(%{})
     end
 
@@ -145,17 +145,28 @@ defmodule Supabase.Storage.OptionsTest do
       {:ok, opts} = TransformOptions.parse(%{width: 100})
 
       query = to_string(opts)
-      assert query =~ "width=100"
-      refute query =~ "height="
+      assert URI.decode_query(query) == %{"width" => "100"}
     end
 
-    test "encodes all defaults when everything is set" do
-      {:ok, opts} = TransformOptions.parse(%{width: 100, height: 50, quality: 90})
+    test "encodes explicit values as a query string" do
+      {:ok, opts} =
+        TransformOptions.parse(%{
+          width: 100,
+          height: 50,
+          resize: "cover",
+          quality: 90,
+          format: "origin"
+        })
 
       query = to_string(opts)
-      assert query =~ "resize=cover"
-      assert query =~ "quality=90"
-      assert query =~ "format=origin"
+
+      assert URI.decode_query(query) == %{
+               "width" => "100",
+               "height" => "50",
+               "resize" => "cover",
+               "quality" => "90",
+               "format" => "origin"
+             }
     end
   end
 

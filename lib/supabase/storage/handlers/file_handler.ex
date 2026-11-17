@@ -55,7 +55,7 @@ defmodule Supabase.Storage.FileHandler do
       "cache-control" => "max-age=#{opts.cache_control}",
       "content-type" => opts.content_type,
       "x-upsert" => to_string(opts.upsert),
-      "x-metadata" => Base.encode64(Jason.encode!(opts.metadata))
+      "x-metadata" => Base.encode64(JSON.encode!(opts.metadata))
     })
     |> Request.with_headers(opts.headers)
     |> dispatch_upload(source, opts)
@@ -115,10 +115,10 @@ defmodule Supabase.Storage.FileHandler do
     client
     |> Storage.Request.base(Endpoints.file_move())
     |> Request.with_body(%{
-      bucket_id: bucket_id,
-      source_key: path,
-      destination_key: to,
-      destination_bucket: dest
+      bucketId: bucket_id,
+      sourceKey: path,
+      destinationKey: to,
+      destinationBucket: dest
     })
     |> Request.with_method(:post)
     |> Fetcher.request()
@@ -130,10 +130,10 @@ defmodule Supabase.Storage.FileHandler do
     client
     |> Storage.Request.base(Endpoints.file_copy())
     |> Request.with_body(%{
-      bucket_id: bucket_id,
-      source_key: path,
-      destination_key: to,
-      destination_bucket: dest
+      bucketId: bucket_id,
+      sourceKey: path,
+      destinationKey: to,
+      destinationBucket: dest
     })
     |> Request.with_method(:post)
     |> Fetcher.request()
@@ -152,10 +152,21 @@ defmodule Supabase.Storage.FileHandler do
   @spec list(Client.t(), bucket_id, prefix, search_opts) :: Supabase.result(Response.t())
   def list(%Client{} = client, bucket_id, prefix, %Search{} = opts) do
     uri = Endpoints.file_list(bucket_id)
-    body = Map.merge(%{prefix: prefix || ""}, Map.from_struct(opts))
+
+    body =
+      %{
+        prefix: prefix || "",
+        limit: opts.limit,
+        offset: opts.offset,
+        sortBy: opts.sort_by,
+        search: opts.search
+      }
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      |> Enum.into(%{})
 
     client
     |> Storage.Request.base(uri)
+    |> Request.with_method(:post)
     |> Request.with_body_decoder(BodyDecoder, schema: File)
     |> Request.with_headers(%{"content-type" => "application/json"})
     |> Request.with_body(body)
@@ -200,11 +211,7 @@ defmodule Supabase.Storage.FileHandler do
 
     uri = Endpoints.file_signed_url(bucket_id, path)
 
-    transform =
-      if transform do
-        {:ok, parsed} = Transform.parse(transform)
-        parsed
-      end
+    transform = transform_body(transform)
 
     body =
       if transform do
@@ -225,7 +232,7 @@ defmodule Supabase.Storage.FileHandler do
           Supabase.result(Response.t())
   def create_signed_urls(%Client{} = client, bucket_id, paths, opts) when is_list(paths) do
     expires_in = Keyword.fetch!(opts, :expires_in)
-    transform = Keyword.get(opts, :transform)
+    transform = opts |> Keyword.get(:transform) |> transform_body()
 
     uri = Endpoints.file_signed_url(bucket_id)
 
@@ -350,4 +357,16 @@ defmodule Supabase.Storage.FileHandler do
 
   defp upload_http_opts(%Opts{receive_timeout: nil}), do: []
   defp upload_http_opts(%Opts{receive_timeout: timeout}), do: [receive_timeout: timeout]
+
+  defp transform_body(nil), do: nil
+
+  defp transform_body(attrs) do
+    {:ok, transform} = Transform.parse(attrs)
+
+    transform
+    |> Map.from_struct()
+    |> Map.take([:width, :height, :resize, :quality, :format])
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.new()
+  end
 end

@@ -234,9 +234,17 @@ defmodule Supabase.Storage.FileTest do
   describe "move/2" do
     test "moves a file and returns :moved", %{storage: storage} do
       @mock
-      |> expect(:request, fn %Request{url: url} = req, _opts ->
+      |> expect(:request, fn %Request{url: url, body: body} = req, _opts ->
         assert req.method == :post
         assert url.path =~ "/object/move"
+
+        assert JSON.decode!(IO.iodata_to_binary(body)) == %{
+                 "bucketId" => "main",
+                 "sourceKey" => "a.png",
+                 "destinationKey" => "b.png",
+                 "destinationBucket" => nil
+               }
+
         respond(200, ~s({"message": "Successfully moved"}))
       end)
 
@@ -245,8 +253,16 @@ defmodule Supabase.Storage.FileTest do
 
     test "supports a destination bucket", %{storage: storage} do
       @mock
-      |> expect(:request, fn %Request{body: body}, _opts ->
-        assert IO.iodata_to_binary(body) =~ ~s("destination_bucket":"other")
+      |> expect(:request, fn %Request{body: body} = req, _opts ->
+        assert req.method == :post
+
+        assert JSON.decode!(IO.iodata_to_binary(body)) == %{
+                 "bucketId" => "main",
+                 "sourceKey" => "a.png",
+                 "destinationKey" => "b.png",
+                 "destinationBucket" => "other"
+               }
+
         respond(200, ~s({"message": "Successfully moved"}))
       end)
 
@@ -258,8 +274,17 @@ defmodule Supabase.Storage.FileTest do
   describe "copy/2" do
     test "copies a file and returns :moved", %{storage: storage} do
       @mock
-      |> expect(:request, fn %Request{url: url}, _opts ->
+      |> expect(:request, fn %Request{url: url, body: body} = req, _opts ->
+        assert req.method == :post
         assert url.path =~ "/object/copy"
+
+        assert JSON.decode!(IO.iodata_to_binary(body)) == %{
+                 "bucketId" => "main",
+                 "sourceKey" => "a.png",
+                 "destinationKey" => "b.png",
+                 "destinationBucket" => nil
+               }
+
         respond(200, ~s({"Key": "main/b.png"}))
       end)
 
@@ -270,11 +295,32 @@ defmodule Supabase.Storage.FileTest do
   describe "create_signed_url/3" do
     test "returns the signed url", %{storage: storage} do
       @mock
-      |> expect(:request, fn %Request{}, _opts ->
+      |> expect(:request, fn %Request{body: body}, _opts ->
+        assert JSON.decode!(IO.iodata_to_binary(body)) == %{"expiresIn" => 60}
         respond(200, ~s({"signedURL": "/object/sign/main/a.png?token=token-123"}))
       end)
 
       assert {:ok, url} = SFile.create_signed_url(storage, "a.png", expires_in: 60)
+      assert url =~ "token=token-123"
+    end
+
+    test "sends only explicitly supplied transform options", %{storage: storage} do
+      @mock
+      |> expect(:request, fn %Request{body: body}, _opts ->
+        assert JSON.decode!(IO.iodata_to_binary(body)) == %{
+                 "expiresIn" => 60,
+                 "transform" => %{"width" => 100}
+               }
+
+        respond(200, ~s({"signedURL": "/object/sign/main/a.png?token=token-123"}))
+      end)
+
+      assert {:ok, url} =
+               SFile.create_signed_url(storage, "a.png",
+                 expires_in: 60,
+                 transform: %{width: 100}
+               )
+
       assert url =~ "token=token-123"
     end
 
@@ -325,10 +371,51 @@ defmodule Supabase.Storage.FileTest do
       """
 
       @mock
-      |> expect(:request, fn %Request{}, _opts -> respond(200, body) end)
+      |> expect(:request, fn %Request{body: request_body}, _opts ->
+        assert JSON.decode!(IO.iodata_to_binary(request_body)) == %{
+                 "expiresIn" => 60,
+                 "paths" => ["a.png", "b.png"]
+               }
+
+        respond(200, body)
+      end)
 
       assert {:ok, [%{path: "a.png", signed_url: u1}, %{path: "b.png", signed_url: u2}]} =
                SFile.create_signed_urls(storage, ["a.png", "b.png"], expires_in: 60)
+
+      assert u1 =~ "token=t1"
+      assert u2 =~ "token=t2"
+    end
+
+    test "parses transforms and sends only explicitly supplied options", %{storage: storage} do
+      response_body = """
+      [
+        {"path": "a.png", "signedURL": "/object/sign/main/a.png?token=t1", "error": null},
+        {"path": "b.png", "signedURL": "/object/sign/main/b.png?token=t2", "error": null}
+      ]
+      """
+
+      @mock
+      |> expect(:request, fn %Request{body: request_body}, _opts ->
+        assert JSON.decode!(IO.iodata_to_binary(request_body)) == %{
+                 "expiresIn" => 60,
+                 "paths" => ["a.png", "b.png"],
+                 "transform" => %{
+                   "height" => 50,
+                   "resize" => "fill",
+                   "quality" => 75,
+                   "format" => "webp"
+                 }
+               }
+
+        respond(200, response_body)
+      end)
+
+      assert {:ok, [%{path: "a.png", signed_url: u1}, %{path: "b.png", signed_url: u2}]} =
+               SFile.create_signed_urls(storage, ["a.png", "b.png"],
+                 expires_in: 60,
+                 transform: %{height: 50, resize: "fill", quality: 75, format: "webp"}
+               )
 
       assert u1 =~ "token=t1"
       assert u2 =~ "token=t2"
@@ -364,9 +451,45 @@ defmodule Supabase.Storage.FileTest do
   describe "list/3" do
     test "returns the raw body list", %{storage: storage} do
       @mock
-      |> expect(:request, fn %Request{}, _opts -> respond(200, ~s([{"id": "a"}])) end)
+      |> expect(:request, fn %Request{body: request_body} = req, _opts ->
+        assert req.method == :post
+
+        assert JSON.decode!(IO.iodata_to_binary(request_body)) == %{
+                 "prefix" => "folder",
+                 "limit" => 100,
+                 "offset" => 0,
+                 "sortBy" => %{"column" => "name", "order" => "asc"}
+               }
+
+        respond(200, ~s([{"id": "a"}]))
+      end)
 
       assert {:ok, [%SFile{id: "a"}]} = SFile.list(storage, "folder")
+    end
+
+    test "sends non-default search options", %{storage: storage} do
+      @mock
+      |> expect(:request, fn %Request{body: request_body} = req, _opts ->
+        assert req.method == :post
+
+        assert JSON.decode!(IO.iodata_to_binary(request_body)) == %{
+                 "prefix" => "folder",
+                 "limit" => 25,
+                 "offset" => 5,
+                 "search" => "photo",
+                 "sortBy" => %{"column" => "created_at", "order" => "desc"}
+               }
+
+        respond(200, ~s([{"id": "a"}]))
+      end)
+
+      assert {:ok, [%SFile{id: "a"}]} =
+               SFile.list(storage, "folder", %{
+                 limit: 25,
+                 offset: 5,
+                 search: "photo",
+                 sort_by: %{column: "created_at", order: "desc"}
+               })
     end
   end
 
@@ -375,7 +498,7 @@ defmodule Supabase.Storage.FileTest do
       body = """
       {
         "hasNext": true,
-        "cursor": "next-cursor",
+        "nextCursor": "next-cursor",
         "folders": ["sub/"],
         "objects": [{"id": "a", "name": "a.png", "bucket_id": "main"}]
       }
@@ -395,10 +518,34 @@ defmodule Supabase.Storage.FileTest do
 
     test "defaults missing fields", %{storage: storage} do
       @mock
-      |> expect(:request, fn %Request{}, _opts -> respond(200, ~s({})) end)
+      |> expect(:request, fn %Request{body: body}, _opts ->
+        assert JSON.decode!(IO.iodata_to_binary(body)) == %{"prefix" => ""}
+        respond(200, ~s({}))
+      end)
 
       assert {:ok, %{has_next: false, cursor: nil, folders: [], objects: []}} =
                SFile.list_v2(storage)
+    end
+
+    test "sends explicit request options with a prefix", %{storage: storage} do
+      @mock
+      |> expect(:request, fn %Request{body: body}, _opts ->
+        assert JSON.decode!(IO.iodata_to_binary(body)) == %{
+                 "prefix" => "folder",
+                 "limit" => 50,
+                 "cursor" => "page-cursor",
+                 "with_delimiter" => true
+               }
+
+        respond(200, ~s({}))
+      end)
+
+      assert {:ok, %{has_next: false, cursor: nil, folders: [], objects: []}} =
+               SFile.list_v2(storage, "folder", %{
+                 limit: 50,
+                 cursor: "page-cursor",
+                 with_delimiter: true
+               })
     end
 
     test "keeps the raw map when an object fails to parse", %{storage: storage} do
@@ -468,8 +615,7 @@ defmodule Supabase.Storage.FileTest do
                SFile.get_public_url(storage, "a.png", transform: %{width: 100, height: 100})
 
       assert url =~ "/render/image/public/main/a.png"
-      assert url =~ "width=100"
-      assert url =~ "height=100"
+      assert URI.decode_query(URI.parse(url).query) == %{"width" => "100", "height" => "100"}
     end
   end
 
@@ -512,6 +658,7 @@ defmodule Supabase.Storage.FileTest do
       @mock
       |> expect(:request, fn %Request{url: url}, _opts ->
         assert url.query =~ "width=100"
+        assert URI.decode_query(url.query) == %{"width" => "100"}
         respond(200, "file-content")
       end)
 

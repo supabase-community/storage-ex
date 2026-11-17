@@ -129,15 +129,59 @@ defmodule Supabase.StorageTest do
   describe "update_bucket/3" do
     test "it should update a bucket with a PUT request", %{client: client} do
       @mock
-      |> expect(:request, fn %Request{url: url} = req, _opts ->
+      |> expect(:request, fn %Request{url: url, body: body} = req, _opts ->
         assert req.method == :put
         assert url.path =~ "/bucket/some"
+
+        assert %{"public" => true, "file_size_limit" => nil} =
+                 JSON.decode!(IO.iodata_to_binary(body))
 
         {:ok,
          %Finch.Response{status: 200, headers: [], body: ~s({"message": "Successfully updated"})}}
       end)
 
       assert {:ok, :updated} = Storage.update_bucket(client, "some", %{public: true})
+    end
+
+    test "it should send byte file size limits as numbers", %{client: client} do
+      @mock
+      |> expect(:request, fn %Request{body: body} = req, _opts ->
+        assert req.method == :put
+
+        assert %{"file_size_limit" => 1_024} =
+                 JSON.decode!(IO.iodata_to_binary(body))
+
+        {:ok,
+         %Finch.Response{status: 200, headers: [], body: ~s({"message": "Successfully updated"})}}
+      end)
+
+      assert {:ok, :updated} =
+               Storage.update_bucket(client, "some", %{public: true, file_size_limit: 1_024})
+    end
+
+    test "it should send human file size limits as strings", %{client: client} do
+      for {file_size_limit, expected} <- [{"10MB", "10MB"}, {"20GB", "20GB"}, {"30TB", "30TB"}] do
+        @mock
+        |> expect(:request, fn %Request{body: body} = req, _opts ->
+          assert req.method == :put
+
+          assert %{"file_size_limit" => ^expected} =
+                   JSON.decode!(IO.iodata_to_binary(body))
+
+          {:ok,
+           %Finch.Response{
+             status: 200,
+             headers: [],
+             body: ~s({"message": "Successfully updated"})
+           }}
+        end)
+
+        assert {:ok, :updated} =
+                 Storage.update_bucket(client, "some", %{
+                   public: true,
+                   file_size_limit: file_size_limit
+                 })
+      end
     end
 
     test "it should return a changeset error for invalid attrs", %{client: client} do
